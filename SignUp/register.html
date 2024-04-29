@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/Register/Register.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- <script src="/Register/Register.css"></script> -->
+  <title>Register</title>
+</head>
+<body>
+  <div class="scroller">
+
+    <a href="/Almoúra.html"><i class="fa-solid fa-xmark x"></i></a>
+
+
+    <p>Please fill out this form with the required information</p>
+    <form id="registration-form" method="post" action="/Almoúra.html">
+      <fieldset>
+        <h1>Registration</h1>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fullName">Name </label>
+            <input id="fullName" name="fullName" type="text" placeholder="enter your name" required />
+          </div>
+          <div class="form-group">
+            <!-- <label for="new-password">Password </label>
+          <input id="new-password" name="new-password" type="password" pattern="[a-z0-5]{8,}" placeholder="enter your password" required /> -->
+          <label for="email">Email </label>
+            <input id="email" name="email" type="email" placeholder="enter your email" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="phoneNumber">Phone number </label>
+            <input id="phoneNumber" name="phoneNumber" type="text" placeholder="+7 (xxx) xxx-xx-xx" pattern="\+7 \(\d{3}\) \d{3}-\d{2}-\d{2}" required />
+          </div>
+          <div class="form-group">
+            <label for="birthDate">Date of birth </label>
+            <input id="birthDate" name="birthDate" type="date" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="address">Address </label>
+            <input id="address" name="address" type="text" placeholder="enter your address" required />
+          </div>
+          <div class="form-group">
+            <!-- <label for="email">Email </label>
+            <input id="email" name="email" type="email" placeholder="enter your email" required /> -->
+            <label for="new-password">Password </label>
+          <input id="new-password" name="new-password" type="password" pattern="[a-z0-9]{8,}" placeholder="enter your password" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Gender</label>
+          <div class="radio-buttons">
+            <label><input type="radio" id="Male" value="Male" name="Male-Female" checked> Male</label>
+            <label><input type="radio" id="Female" value="Female" name="Male-Female"> Female</label>
+          </div>
+        </div>
+        
+        <input type="submit" value="Submit" />
+      </fieldset>
+    </form>
+  
+  </div>
+</body>
+<script src="/Register/Register.js"></script>
+</html>
+
+
