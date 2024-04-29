@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="/Profile/profile.css">
+  <title>Profile</title>
+</head>
+<body>
+
+
+  <header>
+    <a href="/Almoúra.html">
+      <div class="header"><i class="fa-brands fa-dropbox"></i>
+        <span>TóMA</span>
+      </div>
+    </a>
+    <nav>
+      <ul>
+        <li class="hover-underline-animation"><a href="/Almoúra.html"><i class="fa-solid fa-bars"></i> Menu</a></li>
+        <li class="hover-underline-animation"><a href="/Orders/order.html"><i class="fa-solid fa-pizza-slice"></i> Orders</a></li>
+        <li class="hover-underline-animation"><a href="/Cart/cart.html"><i class="fa-solid fa-cart-shopping"></i> Cart</a></li>
+        <!-- Add the select dropdown here -->
+        <li class="select-dropdown1">
+          <div class="border-line">
+          <i class="fa-solid fa-user a7a"></i>
+          </div>
+          <div class="dropdown-content">
+            <a href="/Almoúra.html"><i class="fa-solid fa-house"></i> Home</a>
+            <a href="/Profile/profile.html" id="profile-link"><i class="fa-regular fa-user"></i> Profile</a>
+            <a href="#" id="logout-link"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>
+          </div>
+        </li>
+      </ul>
+    </nav>
+</header>
+
+  <fieldset>
+    <img src="/Profile/woman-7343219_1280.jpg" alt="pharaon">
+    <div id="profile">
+      <h2>Welcome <span class="fullName"></span></h2>
+      <p><strong>Full Name </strong> <input type="text" id="fullName"></p>
+      <p><strong>Birth Date </strong> <input type="date" id="birthDate"></p>
+      <p><strong>Gender </strong> <input id="gender" type="text" readonly /></p>
+      <p><strong>Address </strong> <input type="text" id="address"></p>
+      <p><strong>Email </strong> <input id="email" type="text" readonly/></p>
+      <p><strong>Phone Number </strong> <input type="text" id="phoneNumber"></p>
+    </div>
+    <button id="updateProfileBtn">Update Profile</button>
+  </fieldset>
+
+</body>
+<script src="/Profile/profile.js"></script>
+</html>
