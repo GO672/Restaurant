@@ -1,0 +1,57 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/Login/login.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <title>Log in</title>
+</head>
+<body>
+
+  <a href="/Almoúra.html"><i class="fa-solid fa-xmark x"></i></a>
+
+  <div class="penguin">
+    <div class="penguin-head">
+      <div class="face left"></div>
+      <div class="face right"></div>
+      <div class="chin"></div>
+      <div class="eye left">
+        <div class="eye-lid"></div>
+      </div>
+      <div class="eye right">
+        <div class="eye-lid"></div>
+      </div>
+      <div class="blush left"></div>
+      <div class="blush right"></div>
+      <div class="beak top"></div>
+      <div class="beak bottom"></div>
+    </div>
+    <div class="penguin-body">
+      <div class="arm left"></div>
+      <div class="arm right"></div>
+      <div class="foot left"></div>
+      <div class="foot right"></div>
+    </div>
+  </div>
+
+
+  <form id="Sign-in" method="post" action="/Almoúra.html">
+    <fieldset>
+      <h1>Sign in</h1>
+
+    <label for="email">Email </label>
+      <input id="email" name="email" type="email" required />
+
+    <label for="new-password">Password </label>
+      <input id="new-password" name="new-password" type="password" pattern="[a-z0-9]{8,}" required />
+
+    <input type="submit" value="Submit" />
+
+    </fieldset>
+  </form>
+
+</body>
+<script src="/Login/login.js"></script>
+</html>
