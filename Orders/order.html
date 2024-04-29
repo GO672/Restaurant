@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="/Orders/order.css">
+  <title>Orders</title>
+</head>
+<body>
+  <header>
+    <a href="/Almoúra.html">
+      <div class="header"><i class="fa-brands fa-dropbox"></i>
+        <span>TóMA</span>
+      </div>
+    </a>
+    <nav>
+      <ul>
+        <li class="hover-underline-animation"><a href="/Almoúra.html"><i class="fa-solid fa-bars"></i> Menu</a></li>
+        <li class="hover-underline-animation"><a href="/Orders/order.html"><i class="fa-solid fa-pizza-slice"></i> Orders</a></li>
+        <li class="hover-underline-animation"><a href="/Cart/cart.html"><i class="fa-solid fa-cart-shopping"></i> Cart</a></li>
+        <li class="select-dropdown1">
+          <div class="border-line">
+          <i class="fa-solid fa-user a7a"></i>
+          </div>
+          <div class="dropdown-content">
+            <a href="/Profile/profile.html" id="profile-link"><i class="fa-regular fa-user"></i> Profile</a>
+            <a href="#" id="logout-link"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>
+          </div>
+        </li>
+      </ul>
+    </nav>
+</header>
+
+  <h1>Previous Orders</h1>
+
+  <div id="orders-container"></div>
+
+
+  <div id="popup-box" class="modal">
+    <div class="content">
+        <h2>Order Details</h2>
+        <p id="order-time"></p>
+        <p id="order-status"></p>
+        <p id="expected-delivery-time"></p>
+        <!-- <p id="total-order-cost"></p> -->
+        <p id="address"></p>
+        <h3>Dishes:</h3>
+        <ul id="dishes-list"></ul>
+        <p id="total-order-cost"></p>
+    </div>
+</div>
+
+<a href="#" id="close-popup"><i class="fa-solid fa-xmark x"></i></a>
+
+</body>
+<script src="/Orders/order.js"></script>
+</html>
