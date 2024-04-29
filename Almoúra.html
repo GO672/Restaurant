@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/Almoúra.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <title>TóMA</title>
+</head>
+<body>
+
+<div class="scroller">
+
+  <header>
+    <a href="Almoúra.html">
+      <div class="header"><i class="fa-brands fa-dropbox"></i>
+        <span>TóMA</span>
+      </div>
+    </a>
+    <nav>
+      <ul>
+        <li class="hover-underline-animation"><a href="Almoúra.html"><i class="fa-solid fa-bars"></i> Menu</a></li>
+        <li class="hover-underline-animation"><a href="/Orders/order.html"><i class="fa-solid fa-pizza-slice"></i> Orders</a></li>
+        <li class="hover-underline-animation"><a href="/Cart/cart.html"><i class="fa-solid fa-cart-shopping"></i> Cart</a></li>
+        <li><a href="/Register/Register.html"> Sign Up</a></li>
+        <li><a href="/Login/login.html">Log in</a></li>
+        <!-- Add the select dropdown here -->
+        <li class="select-dropdown1">
+          <div class="border-line">
+          <i class="fa-solid fa-user a7a"></i>
+          </div>
+          <div class="dropdown-content">
+            <a href="/Profile/profile.html" id="profile-link"><i class="fa-regular fa-user"></i> Profile</a>
+            <a href="#" id="logout-link"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>
+          </div>
+        </li>
+      </ul>
+    </nav>
+</header>
+
+
+  <div class="filter">
+
+    <div class="vegetarian">
+      <label for="is-vegetarian"><span class="vege-text">Vegetarian</span></label>
+        <label for="is-vegetarian" class="switch">
+          <input id="is-vegetarian" type="checkbox">
+          <span class="slider round"></span>
+        </label>
+    </div>
+
+    
+    
+    <div class="cont">
+      <div class="select-btn">
+        <span class="btn-text">Categories</span>
+        <span class="arrow-dwn">
+          <i class="fa-solid fa-chevron-down"></i>
+        </span>
+      </div>
+      <ul class="list-items">
+        <li class="item">
+          <span class="checkbox">
+            <i class="fa-solid fa-check check-icon"></i>
+          </span>
+          <span class="item-text" id="Wok">Wok</span>
+        </li>
+        <li class="item">
+          <span class="checkbox">
+            <i class="fa-solid fa-check check-icon"></i>
+          </span>
+          <span class="item-text" id="Pizza">Pizza</span>
+        </li>
+        <li class="item">
+          <span class="checkbox">
+            <i class="fa-solid fa-check check-icon"></i>
+          </span>
+          <span class="item-text" id="Soup">Soup</span>
+        </li>
+        <li class="item">
+          <span class="checkbox">
+            <i class="fa-solid fa-check check-icon"></i>
+          </span>
+          <span class="item-text" id="Dessert">Dessert</span>
+        </li>
+        <li class="item">
+          <span class="checkbox">
+            <i class="fa-solid fa-check check-icon"></i>
+          </span>
+          <span class="item-text" id="Drink">Drink</span>
+        </li>
+      </ul>
+    </div>
+    
+    
+    
+    <div class="custom-select">
+      <button
+        class="select-button"
+        role="combobox"
+        aria-labelledby="select button"
+        aria-haspopup="listbox"
+        aria-expanded="false"
+        aria-controls="select-dropdown"
+      >
+        <span class="selected-value">Sorting</span>
+        <span class="arrow">
+          <i class="fa-solid fa-chevron-down"></i>
+        </span>
+      </button>
+      <ul class="select-dropdown" role="listbox" id="select-dropdown">
+        <li role="option">
+          <input type="radio" id="None" name="filter" value="None" />
+          <span class="check">
+            <i class="fa-solid fa-check icon"></i>
+          </span>
+          <label for="None">--</label>
+        </li>
+        <li role="option">
+          <input type="radio" id="NameAsc" name="filter" value="NameAsc" />
+          <span class="check">
+            <i class="fa-solid fa-check icon"></i>
+          </span>
+          <label for="NameAsc">NameAsc</label>
+        </li>
+        <li role="option">
+          <input type="radio" id="NameDesc" name="filter" value="NameDesc" />
+          <span class="check">
+            <i class="fa-solid fa-check icon"></i>
+          </span>
+          <label for="NameDesc">NameDesc</label>
+        </li>
+        <li role="option">
+          <input type="radio" id="PriceAsc" name="filter" value="PriceAsc" />
+          <span class="check">
+            <i class="fa-solid fa-check icon"></i>
+          </span>
+          <label for="PriceAsc">priceAsc</label>
+        </li>
+        <li role="option">
+          <input type="radio" id="PriceDesc" name="filter" value="PriceDesc" />
+          <span class="check">
+            <i class="fa-solid fa-check icon"></i>
+          </span>
+          <label for="PriceDesc">PriceDesc</label>
+        </li>
+        <li role="option">
+          <input type="radio" id="RatingAsc" name="filter" value="RatingAsc" />
+          <span class="check">
+            <i class="fa-solid fa-check icon"></i>
+          </span>
+          <label for="RatingAsc">RatingAsc</label>
+        </li>
+        <li role="option">
+          <input type="radio" id="RatingDesc" name="filter" value="RatingDesc" />
+          <span class="check">
+            <i class="fa-solid fa-check icon"></i>
+          </span>
+          <label for="RatingDesc">RatingDesc</label>
+        </li>
+      </ul>
+    </div>
+    
+    
+    <button class="filter-btn">
+      <i class="fa-solid fa-kiwi-bird glass-icon"></i>Filter
+    </button>
+  
+  
+  </div>
+
+  <div class="containercards">
+    <div class="cards" id="cards">
+    </div>
+  </div>
+
+  <div id="pagination" class="pagination"></div>
+</div>
+</body>
+<script src="/Almoúra.js"></script>
+</html>
