@@ -1,16 +1,41 @@
-// Function to get the value of a URL parameter
-const getParameterByName = (name, url) => {
-    if (!url) url = window.location.href;
-    name = name.replace(/[[\]]/g, '\\$&');
-    const regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
-        results = regex.exec(url);
-    if (!results) return null;
-    if (!results[2]) return '';
-    return decodeURIComponent(results[2].replace(/\+/g, ' '));
-};
+// URLParams value object to encapsulate URL parameter parsing and access
+class URLParams {
+  constructor(url = window.location.href) {
+    this.url = url;
+    this.params = new URLSearchParams((new URL(url)).search);
+  }
+
+  // Get a parameter as a string (null if not present)
+  getString(name) {
+    const value = this.params.get(name);
+    return value !== null ? value : null;
+  }
+
+  // Get a parameter as an integer (null if not present or invalid)
+  getInt(name) {
+    const value = this.getString(name);
+    if (value === null) return null;
+    const parsed = parseInt(value, 10);
+    return isNaN(parsed) ? null : parsed;
+  }
+
+  // Get a parameter as a boolean (false if not present)
+  getBool(name) {
+    const value = this.getString(name);
+    return value === 'true';
+  }
+
+  // Get all values for a parameter (for arrays)
+  getAll(name) {
+    return this.params.getAll(name);
+  }
+}
+
+// Initialize URLParams instance
+const urlParams = new URLParams();
 
 // Get the order ID from the URL parameter
-const orderId = getParameterByName('id');
+const orderId = urlParams.getString('id');
 
 // Fetch order details based on the order ID
 fetch(`https://food-delivery.int.kreosoft.space/api/order/${orderId}`, {
