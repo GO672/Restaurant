@@ -196,31 +196,11 @@ createOrderButton.addEventListener('click', async () => {
     // Create order object with validation
     const orderData = new OrderData(deliveryTimeValue, addressValue);
     
-    // Convert order data to JSON
-    const jsonData = JSON.stringify(orderData);
-
-    // Retrieve token from local storage
-    const token = localStorage.getItem('token');
-
-    // Make sure token exists
-    if (!token) {
-      console.error('No token found in local storage.');
-      return;
-    }
+    // Create API client for order endpoint
+    const orderApiClient = new ApiClient('https://food-delivery.int.kreosoft.space/api');
 
     // Make POST request to create order
-    const response = await fetch('https://food-delivery.int.kreosoft.space/api/order', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: jsonData
-    });
-
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
+    await orderApiClient.post('/order', orderData);
 
     // Display notification on successful order creation
     showNotification('Order created successfully');
@@ -335,11 +315,10 @@ class OrderData {
   }
 }
 
-// Cart service class to encapsulate all cart operations
-class CartService {
-  constructor() {
-    this.baseUrl = 'https://food-delivery.int.kreosoft.space/api/basket';
-    this.debounceTimer = null;
+// API client class to centralize HTTP requests and eliminate header duplication
+class ApiClient {
+  constructor(baseUrl) {
+    this.baseUrl = baseUrl;
   }
 
   // Get authentication token
@@ -351,12 +330,70 @@ class CartService {
     return token;
   }
 
-  // Get auth headers
-  getAuthHeaders() {
+  // Get standard headers for authenticated requests
+  getHeaders() {
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${this.getAuthToken()}`
     };
+  }
+
+  // GET request
+  async get(endpoint) {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.getAuthToken()}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`GET request failed: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // POST request
+  async post(endpoint, data = null) {
+    const options = {
+      method: 'POST',
+      headers: this.getHeaders()
+    };
+
+    if (data) {
+      options.body = JSON.stringify(data);
+    }
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, options);
+
+    if (!response.ok) {
+      throw new Error(`POST request failed: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // DELETE request
+  async delete(endpoint) {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'DELETE',
+      headers: this.getHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`DELETE request failed: ${response.status}`);
+    }
+
+    return response;
+  }
+}
+
+// Cart service class to encapsulate all cart operations
+class CartService {
+  constructor() {
+    this.apiClient = new ApiClient('https://food-delivery.int.kreosoft.space/api/basket');
+    this.debounceTimer = null;
   }
 
   // Debounced cart refresh
@@ -370,15 +407,7 @@ class CartService {
   // Add item to cart
   async addItem(itemId) {
     try {
-      const response = await fetch(`${this.baseUrl}/dish/${itemId}`, {
-        method: 'POST',
-        headers: this.getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add item to cart');
-      }
-
+      await this.apiClient.post(`/dish/${itemId}`);
       console.log('Item added to cart successfully');
       await this.refreshCart();
     } catch (error) {
@@ -390,15 +419,8 @@ class CartService {
   // Remove item from cart
   async removeItem(itemId, cartItemElement) {
     try {
-      const response = await fetch(`${this.baseUrl}/dish/${itemId}?increase=false`, {
-        method: 'DELETE',
-        headers: this.getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to remove item from cart');
-      }
-
+      await this.apiClient.delete(`/dish/${itemId}?increase=false`);
+      
       // Remove from DOM
       cartItemElement.remove();
       
@@ -413,15 +435,7 @@ class CartService {
   // Update item quantity
   async updateQuantity(itemId, increase = false) {
     try {
-      const response = await fetch(`${this.baseUrl}/dish/${itemId}?increase=${increase}`, {
-        method: 'DELETE',
-        headers: this.getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update item quantity');
-      }
-
+      await this.apiClient.delete(`/dish/${itemId}?increase=${increase}`);
       console.log(`Quantity ${increase ? 'increased' : 'decreased'} successfully`);
       await this.refreshCart();
     } catch (error) {
@@ -433,18 +447,7 @@ class CartService {
   // Get cart data
   async getCartData() {
     try {
-      const response = await fetch(this.baseUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.getAuthToken()}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch cart data');
-      }
-
-      const data = await response.json();
+      const data = await this.apiClient.get('');
       console.log('Cart Data:', data);
       displayCartItems(data);
     } catch (error) {
@@ -468,28 +471,20 @@ const cartService = new CartService();
 // Initialize cart service and load initial data
 cartService.getCartData();
 
-document.getElementById('logout-link').addEventListener('click', function(event) {
+document.getElementById('logout-link').addEventListener('click', async function(event) {
   event.preventDefault(); // Prevent default action of the link
 
-  // Retrieve the token from localStorage
-  const token = localStorage.getItem('token');
-
-  fetch('https://food-delivery.int.kreosoft.space/api/account/logout', {
-      method: 'POST',
-      headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-      },
-  })
-  .then(response => {
-      if (response.ok) {            
-          localStorage.removeItem('token');
-          window.location.href = '/Login/login.html';
-      } else {
-          console.error('Logout failed');
-      }
-  })
-  .catch(error => {
-      console.error('Error during logout:', error);
-  });
+  try {
+    // Create API client for account endpoint
+    const accountApiClient = new ApiClient('https://food-delivery.int.kreosoft.space/api/account');
+    
+    // Make logout request
+    await accountApiClient.post('/logout');
+    
+    // Clear token and redirect
+    localStorage.removeItem('token');
+    window.location.href = '/Login/login.html';
+  } catch (error) {
+    console.error('Error during logout:', error);
+  }
 });
