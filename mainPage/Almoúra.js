@@ -1068,12 +1068,100 @@ class ErrorHandler {
   }
 }
 
+// Rating UI Service to decouple DOM logic from RatingService
+class RatingUIService {
+  constructor(ratingService, errorHandler) {
+    this.ratingService = ratingService;
+    this.errorHandler = errorHandler;
+  }
+
+  // Create and setup rating UI for a dish
+  setupRatingUI(dish, card) {
+    const ratingFieldset = document.createElement('div');
+    ratingFieldset.classList.add('rate');
+    ratingFieldset.setAttribute('data-dish-id', dish.id);
+
+    for (let i = 20; i > 0; i--) {
+      const ratingInput = document.createElement('input');
+      ratingInput.setAttribute('type', 'radio');
+      ratingInput.setAttribute('id', `rating${i}-${dish.id}`);
+      ratingInput.setAttribute('name', `${dish.id}-rating`);
+      const value = i % 2 === 0 ? i / 2 : (i + 1) / 2;
+      ratingInput.setAttribute('value', `${value}`);
+
+      const ratingLabel = document.createElement('label');
+      ratingLabel.setAttribute('for', `rating${i}-${dish.id}`);
+      ratingLabel.setAttribute('title', `${value} stars`);
+      if (i % 2 !== 0) {
+        ratingLabel.classList.add('half');
+      }
+
+      ratingFieldset.appendChild(ratingInput);
+      ratingFieldset.appendChild(ratingLabel);
+    }
+
+    // Set current rating
+    this.setCurrentRating(ratingFieldset, dish.rating);
+
+    // Enable rating functionality
+    this.enableRating(dish.id, ratingFieldset);
+
+    // Attach to card
+    card.appendChild(ratingFieldset);
+    return ratingFieldset;
+  }
+
+  // Set current rating display
+  setCurrentRating(ratingFieldset, rating) {
+    const ratingInputs = ratingFieldset.querySelectorAll('input');
+    const fullStars = Math.floor(rating);
+    const halfStar = rating - fullStars >= 0.5;
+    const fullStarIndex = 20 - fullStars * 2;
+
+    if (ratingInputs[fullStarIndex]) {
+      ratingInputs[fullStarIndex].checked = true;
+    }
+    if (halfStar && ratingInputs[fullStarIndex - 1]) {
+      ratingInputs[fullStarIndex - 1].checked = true;
+    }
+  }
+
+  // Enable rating functionality
+  enableRating(dishId, ratingFieldset) {
+    this.ratingService.checkRatingPermission(dishId)
+      .then(canRate => {
+        if (canRate) {
+          const ratingInputs = ratingFieldset.querySelectorAll('input');
+          ratingInputs.forEach(input => {
+            input.disabled = false;
+          });
+
+          ratingFieldset.addEventListener('change', async (event) => {
+            const selectedInput = event.target;
+            if (selectedInput.type === 'radio') {
+              const selectedRating = parseFloat(selectedInput.value);
+              try {
+                await this.ratingService.setRating(dishId, selectedRating);
+              } catch (error) {
+                // Error already handled in setRating method
+              }
+            }
+          });
+        }
+      })
+      .catch(error => {
+        this.errorHandler.handleError(error, `enabling rating for dish ${dishId}`);
+      });
+  }
+}
+
 // Initialize services
 const apiClient = new ApiClient();
 const authService = new AuthService();
 const urlParamsService = new URLParamsService();
 const errorHandler = new ErrorHandler();
 const ratingService = new RatingService(apiClient, errorHandler);
+const ratingUIService = new RatingUIService(ratingService, errorHandler);
 const cartService = new CartService(apiClient, errorHandler);
 
 // Initialize page state
@@ -1169,45 +1257,7 @@ function fetchData(pageNumber) {
                 category.classList.add('category');
                 category.textContent = `Category: ${dish.category}`;
 
-                const ratingFieldset = document.createElement('div');
-                ratingFieldset.classList.add('rate');
-                ratingFieldset.setAttribute('data-dish-id', dish.id);
-
-                for (let i = 20; i > 0; i--) {
-                    const ratingInput = document.createElement('input');
-                    ratingInput.setAttribute('type', 'radio');
-                    ratingInput.setAttribute('id', `rating${i}-${dish.id}`);
-                    ratingInput.setAttribute('name', `${dish.id}-rating`);
-                    const value = i % 2 === 0 ? i / 2 : (i + 1) / 2;
-                    ratingInput.setAttribute('value', `${value}`);
-
-                    const ratingLabel = document.createElement('label');
-                    ratingLabel.setAttribute('for', `rating${i}-${dish.id}`);
-                    ratingLabel.setAttribute('title', `${value} stars`);
-                    if (i % 2 !== 0) {
-                        ratingLabel.classList.add('half');
-                    }
-
-                    ratingFieldset.appendChild(ratingInput);
-                    ratingFieldset.appendChild(ratingLabel);
-                }
-
-                const fullStars = Math.floor(dish.rating);
-                const halfStar = dish.rating - fullStars >= 0.5;
-
-                const ratingInputs = ratingFieldset.querySelectorAll('input');
-                const fullStarIndex = 20 - fullStars * 2;
-
-                if(ratingInputs[fullStarIndex]) {
-                    ratingInputs[fullStarIndex].checked = true;
-                }
-
-                if (halfStar && ratingInputs[fullStarIndex - 1]) {
-                    ratingInputs[fullStarIndex - 1].checked = true;
-                }
-
-                // Enable rating functionality using the service
-                ratingService.enableRatingForDish(dish.id, ratingFieldset);
+                const ratingFieldset = ratingUIService.setupRatingUI(dish, card);
 
                 // Create cart UI using the service
                 const { addToCartBtn, cartSection } = cartService.createCartUI(dish.id, card);
