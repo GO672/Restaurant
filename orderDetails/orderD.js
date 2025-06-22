@@ -107,10 +107,10 @@ class NotificationService {
 // Global notification service instance
 const notificationService = new NotificationService();
 
-// Order API Service to centralize API operations and eliminate data clumps
-class OrderApiService {
-  constructor() {
-    this.baseUrl = 'https://food-delivery.int.kreosoft.space/api';
+// Base API Service to unify interfaces and eliminate alternative classes
+class BaseApiService {
+  constructor(baseUrl) {
+    this.baseUrl = baseUrl;
   }
 
   // Get authentication token
@@ -130,24 +130,104 @@ class OrderApiService {
       throw new Error('Authentication required');
     }
     return {
-      'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     };
+  }
+
+  // Get common headers for JSON requests
+  getJsonHeaders() {
+    return {
+      'Content-Type': 'application/json'
+    };
+  }
+
+  // Get authenticated JSON headers
+  getAuthJsonHeaders() {
+    return {
+      ...this.getJsonHeaders(),
+      ...this.getAuthHeaders()
+    };
+  }
+
+  // Generic GET request
+  async get(endpoint, headers = null) {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'GET',
+      headers: headers || this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`GET request failed: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // Generic POST request
+  async post(endpoint, data = null, headers = null) {
+    const options = {
+      method: 'POST',
+      headers: headers || this.getAuthJsonHeaders()
+    };
+
+    if (data) {
+      options.body = JSON.stringify(data);
+    }
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, options);
+
+    if (!response.ok) {
+      throw new Error(`POST request failed: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // Generic PUT request
+  async put(endpoint, data = null, headers = null) {
+    const options = {
+      method: 'PUT',
+      headers: headers || this.getAuthJsonHeaders()
+    };
+
+    if (data) {
+      options.body = JSON.stringify(data);
+    }
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, options);
+
+    if (!response.ok) {
+      throw new Error(`PUT request failed: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // Generic DELETE request
+  async delete(endpoint, headers = null) {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'DELETE',
+      headers: headers || this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`DELETE request failed: ${response.status}`);
+    }
+
+    return response;
+  }
+}
+
+// Order API Service extending base API service
+class OrderApiService extends BaseApiService {
+  constructor() {
+    super('https://food-delivery.int.kreosoft.space/api');
   }
 
   // Get order details by ID
   async getOrderDetails(orderId) {
     try {
-      const response = await fetch(`${this.baseUrl}/order/${orderId}`, {
-        method: 'GET',
-        headers: this.getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch order details');
-      }
-
-      return await response.json();
+      return await this.get(`/order/${orderId}`);
     } catch (error) {
       console.error('Error fetching order details:', error);
       throw error;
@@ -157,19 +237,10 @@ class OrderApiService {
   // Confirm order delivery
   async confirmOrder(orderId) {
     try {
-      const response = await fetch(`${this.baseUrl}/order/${orderId}/status`, {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${this.getAuthToken()}`
-        },
-        body: ''
+      await this.post(`/order/${orderId}/status`, '', {
+        'accept': 'application/json',
+        'Authorization': `Bearer ${this.getAuthToken()}`
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to confirm order');
-      }
-
       return true;
     } catch (error) {
       console.error('Error confirming order:', error);
@@ -182,15 +253,13 @@ class OrderApiService {
 class OrderStateManager {
   constructor() {
     this.currentOrder = null;
-    this.orderStatus = null;
     this.confirmButton = null;
     this.isProcessing = false;
   }
 
-  // Set current order
-  setOrder(orderDetails) {
-    this.currentOrder = orderDetails;
-    this.orderStatus = OrderStatus.fromString(orderDetails.status);
+  // Set current order using rich domain model
+  setOrder(orderData) {
+    this.currentOrder = Order.fromData(orderData);
   }
 
   // Get current order
@@ -200,7 +269,7 @@ class OrderStateManager {
 
   // Get current order status
   getOrderStatus() {
-    return this.orderStatus;
+    return this.currentOrder ? this.currentOrder.status : null;
   }
 
   // Set confirm button reference
@@ -213,16 +282,15 @@ class OrderStateManager {
     return this.confirmButton;
   }
 
-  // Check if order can be confirmed
+  // Check if order can be confirmed using domain logic
   canConfirmOrder() {
-    return this.orderStatus && this.orderStatus.canBeConfirmed();
+    return this.currentOrder && this.currentOrder.canBeConfirmed();
   }
 
-  // Update order status
+  // Update order status using domain logic
   updateOrderStatus(newStatus) {
     if (this.currentOrder) {
-      this.currentOrder.status = newStatus;
-      this.orderStatus = OrderStatus.fromString(newStatus);
+      this.currentOrder._status = OrderStatus.fromString(newStatus);
     }
   }
 
@@ -236,13 +304,13 @@ class OrderStateManager {
     return this.isProcessing;
   }
 
-  // Validate order state
+  // Validate order state using domain validation
   validateOrderState() {
     if (!this.currentOrder) {
       throw new Error('No order loaded');
     }
-    if (!this.orderStatus) {
-      throw new Error('Invalid order status');
+    if (!this.currentOrder.isValid()) {
+      throw new Error('Invalid order data');
     }
     if (this.isProcessing) {
       throw new Error('Order operation already in progress');
@@ -252,7 +320,6 @@ class OrderStateManager {
   // Reset state
   reset() {
     this.currentOrder = null;
-    this.orderStatus = null;
     this.confirmButton = null;
     this.isProcessing = false;
   }
@@ -266,7 +333,7 @@ class OrderConfirmationService {
     this.stateManager = stateManager;
   }
 
-  // Confirm order with proper state management
+  // Confirm order with proper state management using domain logic
   async confirmOrder() {
     // Validate state before proceeding
     this.stateManager.validateOrderState();
@@ -281,8 +348,8 @@ class OrderConfirmationService {
       // Perform API call
       await this.apiService.confirmOrder(this.stateManager.getOrder().id);
       
-      // Update state
-      this.stateManager.updateOrderStatus(OrderStatus.VALID_STATUSES.DELIVERED);
+      // Update order domain object using business logic
+      this.stateManager.getOrder().confirmDelivery();
       
       // Update UI
       this.updateUIAfterConfirmation();
@@ -318,38 +385,38 @@ class OrderConfirmationService {
     }
   }
 
-  // Update UI after successful confirmation
+  // Update UI after successful confirmation using domain methods
   updateUIAfterConfirmation() {
     const order = this.stateManager.getOrder();
     if (order) {
-      // Update order status display
-      this.uiService.updateOrderStatus(order.status);
+      // Update order status display using domain display name
+      this.uiService.updateOrderStatus(order.status.getDisplayName());
     }
   }
 }
 
-// Order UI Service to handle DOM manipulations
+// Order UI Service to handle DOM manipulations using rich domain model
 class OrderUIService {
   constructor() {
     this.notificationService = notificationService;
   }
 
-  // Update order details in the DOM
-  updateOrderDetails(orderDetails) {
-    // Update basic order information
-    this.updateElement('order-time', `Order Time: ${orderDetails.orderTime}`);
-    this.updateElement('order-status', `Status: ${orderDetails.status}`);
-    this.updateElement('expected-delivery-time', `Expected Delivery Time: ${orderDetails.deliveryTime}`);
-    this.updateElement('total-order-cost', `Total Order Cost: ${orderDetails.price} ₽`);
-    this.updateElement('address', `Address: ${orderDetails.address}`);
+  // Update order details in the DOM using rich domain model
+  updateOrderDetails(order) {
+    // Update basic order information using domain methods
+    this.updateElement('order-time', `Order Time: ${order.getFormattedOrderTime()}`);
+    this.updateElement('order-status', `Status: ${order.status.getDisplayName()}`);
+    this.updateElement('expected-delivery-time', `Expected Delivery Time: ${order.deliveryInfo.getFormattedExpectedTime()}`);
+    this.updateElement('total-order-cost', `Total Order Cost: ${order.getFormattedTotalPrice()}`);
+    this.updateElement('address', `Address: ${order.deliveryInfo.address}`);
 
-    // Update dishes list
-    this.updateDishesList(orderDetails.dishes);
+    // Update dishes list using domain objects
+    this.updateDishesList(order.items);
   }
 
   // Update order status display
-  updateOrderStatus(status) {
-    this.updateElement('order-status', `Status: ${status}`);
+  updateOrderStatus(statusDisplayName) {
+    this.updateElement('order-status', `Status: ${statusDisplayName}`);
   }
 
   // Update a single element
@@ -360,16 +427,16 @@ class OrderUIService {
     }
   }
 
-  // Update dishes list
-  updateDishesList(dishes) {
+  // Update dishes list using rich domain objects
+  updateDishesList(orderItems) {
     const dishesList = document.getElementById('dishes-list');
     if (!dishesList) return;
 
-    dishesList.innerHTML = dishes.map(dish => `
+    dishesList.innerHTML = orderItems.map(item => `
       <li style="display: flex; align-items: center;">
-        <img src="${dish.image}" alt="${dish.name}">
+        <img src="${item.image}" alt="${item.name}">
         <span style="margin-left: 10px;">
-          ${dish.name} <div class="repo"> ${dish.amount} x ${dish.price} ₽ </div>  <div class="a7aa"> Total Price ${dish.totalPrice} ₽</div>
+          ${item.name} <div class="repo"> ${item.amount} x ${item.getFormattedPrice()} </div>  <div class="a7aa"> Total Price ${item.getFormattedTotalPrice()}</div>
         </span>
       </li>
     `).join('');
@@ -409,7 +476,240 @@ class OrderUIService {
   }
 }
 
-// Order Status value object to eliminate primitive obsession
+// Rich Domain Model - Order Item with business logic
+class OrderItem {
+  constructor(id, name, price, amount, image, description = '') {
+    this._id = id;
+    this._name = name;
+    this._price = price;
+    this._amount = amount;
+    this._image = image;
+    this._description = description;
+  }
+
+  // Getters
+  get id() { return this._id; }
+  get name() { return this._name; }
+  get price() { return this._price; }
+  get amount() { return this._amount; }
+  get image() { return this._image; }
+  get description() { return this._description; }
+
+  // Business logic methods
+  getTotalPrice() {
+    return this._price * this._amount;
+  }
+
+  getFormattedPrice() {
+    return `${this._price} ₽`;
+  }
+
+  getFormattedTotalPrice() {
+    return `${this.getTotalPrice()} ₽`;
+  }
+
+  getDisplayText() {
+    return `${this._name} - ${this._amount} x ${this.getFormattedPrice()}`;
+  }
+
+  // Validation
+  isValid() {
+    return this._id && this._name && this._price > 0 && this._amount > 0;
+  }
+
+  // Factory method
+  static fromData(data) {
+    return new OrderItem(
+      data.id,
+      data.name,
+      data.price,
+      data.amount,
+      data.image,
+      data.description
+    );
+  }
+}
+
+// Rich Domain Model - Delivery Information with business logic
+class DeliveryInfo {
+  constructor(address, deliveryTime, expectedDeliveryTime) {
+    this._address = address;
+    this._deliveryTime = new Date(deliveryTime);
+    this._expectedDeliveryTime = new Date(expectedDeliveryTime);
+  }
+
+  // Getters
+  get address() { return this._address; }
+  get deliveryTime() { return this._deliveryTime; }
+  get expectedDeliveryTime() { return this._expectedDeliveryTime; }
+
+  // Business logic methods
+  isDelivered() {
+    return this._deliveryTime <= new Date();
+  }
+
+  isOverdue() {
+    return !this.isDelivered() && this._expectedDeliveryTime < new Date();
+  }
+
+  getDeliveryStatus() {
+    if (this.isDelivered()) {
+      return 'Delivered';
+    } else if (this.isOverdue()) {
+      return 'Overdue';
+    } else {
+      return 'On Time';
+    }
+  }
+
+  getFormattedDeliveryTime() {
+    return this._deliveryTime.toLocaleString();
+  }
+
+  getFormattedExpectedTime() {
+    return this._expectedDeliveryTime.toLocaleString();
+  }
+
+  getTimeUntilDelivery() {
+    const now = new Date();
+    const diff = this._expectedDeliveryTime - now;
+    if (diff <= 0) return 'Past due';
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${minutes}m`;
+  }
+
+  // Validation
+  isValid() {
+    return this._address && this._address.trim().length > 0 &&
+           this._deliveryTime instanceof Date && !isNaN(this._deliveryTime) &&
+           this._expectedDeliveryTime instanceof Date && !isNaN(this._expectedDeliveryTime);
+  }
+
+  // Factory method
+  static fromData(data) {
+    return new DeliveryInfo(
+      data.address,
+      data.deliveryTime,
+      data.expectedDeliveryTime
+    );
+  }
+}
+
+// Rich Domain Model - Order with business logic
+class Order {
+  constructor(id, items, deliveryInfo, status, totalPrice, orderTime) {
+    this._id = id;
+    this._items = items.map(item => OrderItem.fromData(item));
+    this._deliveryInfo = DeliveryInfo.fromData(deliveryInfo);
+    this._status = OrderStatus.fromString(status);
+    this._totalPrice = totalPrice;
+    this._orderTime = new Date(orderTime);
+  }
+
+  // Getters
+  get id() { return this._id; }
+  get items() { return [...this._items]; } // Return copy to prevent external modification
+  get deliveryInfo() { return this._deliveryInfo; }
+  get status() { return this._status; }
+  get totalPrice() { return this._totalPrice; }
+  get orderTime() { return this._orderTime; }
+
+  // Business logic methods
+  getItemCount() {
+    return this._items.reduce((total, item) => total + item.amount, 0);
+  }
+
+  getUniqueItemCount() {
+    return this._items.length;
+  }
+
+  getFormattedTotalPrice() {
+    return `${this._totalPrice} ₽`;
+  }
+
+  getFormattedOrderTime() {
+    return this._orderTime.toLocaleString();
+  }
+
+  canBeConfirmed() {
+    return this._status.canBeConfirmed();
+  }
+
+  canBeCancelled() {
+    return this._status.getValue() === OrderStatus.VALID_STATUSES.PENDING ||
+           this._status.getValue() === OrderStatus.VALID_STATUSES.IN_PROCESS;
+  }
+
+  isDelivered() {
+    return this._status.isDelivered();
+  }
+
+  isOverdue() {
+    return this._deliveryInfo.isOverdue();
+  }
+
+  getDeliveryStatus() {
+    return this._deliveryInfo.getDeliveryStatus();
+  }
+
+  getOrderSummary() {
+    return {
+      id: this._id,
+      itemCount: this.getItemCount(),
+      uniqueItems: this.getUniqueItemCount(),
+      totalPrice: this.getFormattedTotalPrice(),
+      status: this._status.getValue(),
+      deliveryStatus: this.getDeliveryStatus(),
+      orderTime: this.getFormattedOrderTime()
+    };
+  }
+
+  // Business operations
+  confirmDelivery() {
+    if (!this.canBeConfirmed()) {
+      throw new Error('Order cannot be confirmed in its current status');
+    }
+    this._status = OrderStatus.fromString(OrderStatus.VALID_STATUSES.DELIVERED);
+  }
+
+  cancelOrder() {
+    if (!this.canBeCancelled()) {
+      throw new Error('Order cannot be cancelled in its current status');
+    }
+    this._status = OrderStatus.fromString(OrderStatus.VALID_STATUSES.CANCELLED);
+  }
+
+  // Validation
+  isValid() {
+    return this._id && 
+           this._items.length > 0 && 
+           this._items.every(item => item.isValid()) &&
+           this._deliveryInfo.isValid() &&
+           this._status &&
+           this._totalPrice > 0 &&
+           this._orderTime instanceof Date && !isNaN(this._orderTime);
+  }
+
+  // Factory method
+  static fromData(data) {
+    return new Order(
+      data.id,
+      data.dishes || data.items || [],
+      {
+        address: data.address,
+        deliveryTime: data.deliveryTime,
+        expectedDeliveryTime: data.expectedDeliveryTime || data.deliveryTime
+      },
+      data.status,
+      data.price || data.totalPrice,
+      data.orderTime
+    );
+  }
+}
+
+// Enhanced Order Status with more business logic
 class OrderStatus {
   static VALID_STATUSES = {
     IN_PROCESS: 'InProcess',
@@ -437,8 +737,40 @@ class OrderStatus {
     return this._status === OrderStatus.VALID_STATUSES.DELIVERED;
   }
 
+  isCancelled() {
+    return this._status === OrderStatus.VALID_STATUSES.CANCELLED;
+  }
+
+  isPending() {
+    return this._status === OrderStatus.VALID_STATUSES.PENDING;
+  }
+
   canBeConfirmed() {
     return this.isInProcess();
+  }
+
+  canBeCancelled() {
+    return this.isPending() || this.isInProcess();
+  }
+
+  getDisplayName() {
+    const displayNames = {
+      [OrderStatus.VALID_STATUSES.IN_PROCESS]: 'In Process',
+      [OrderStatus.VALID_STATUSES.DELIVERED]: 'Delivered',
+      [OrderStatus.VALID_STATUSES.CANCELLED]: 'Cancelled',
+      [OrderStatus.VALID_STATUSES.PENDING]: 'Pending'
+    };
+    return displayNames[this._status] || this._status;
+  }
+
+  getStatusColor() {
+    const colors = {
+      [OrderStatus.VALID_STATUSES.IN_PROCESS]: 'blue',
+      [OrderStatus.VALID_STATUSES.DELIVERED]: 'green',
+      [OrderStatus.VALID_STATUSES.CANCELLED]: 'red',
+      [OrderStatus.VALID_STATUSES.PENDING]: 'orange'
+    };
+    return colors[this._status] || 'gray';
   }
 
   static fromString(statusString) {
@@ -557,4 +889,4 @@ class URLParams {
 // Initialize order details controller when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
   new OrderDetailsController();
-}); 
+});
