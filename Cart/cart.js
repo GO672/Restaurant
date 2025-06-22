@@ -266,28 +266,25 @@ const showNotification = (message, duration = 1500) => {
 // Event listener for create order button
 createOrderButton.addEventListener('click', async () => {
   // Get delivery date and address values
-  const deliveryTime = deliveryDateInput.value;
-  const address = addressInput.value;
-
-  // Create order object
-  const orderData = {
-    deliveryTime: deliveryTime,
-    address: address
-  };
-
-  // Convert order data to JSON
-  const jsonData = JSON.stringify(orderData);
-
-  // Retrieve token from local storage
-  const token = localStorage.getItem('token');
-
-  // Make sure token exists
-  if (!token) {
-    console.error('No token found in local storage.');
-    return;
-  }
+  const deliveryTimeValue = deliveryDateInput.value;
+  const addressValue = addressInput.value;
 
   try {
+    // Create order object with validation
+    const orderData = new OrderData(deliveryTimeValue, addressValue);
+    
+    // Convert order data to JSON
+    const jsonData = JSON.stringify(orderData);
+
+    // Retrieve token from local storage
+    const token = localStorage.getItem('token');
+
+    // Make sure token exists
+    if (!token) {
+      console.error('No token found in local storage.');
+      return;
+    }
+
     // Make POST request to create order
     const response = await fetch('https://food-delivery.int.kreosoft.space/api/order', {
       method: 'POST',
@@ -305,7 +302,13 @@ createOrderButton.addEventListener('click', async () => {
     // Display notification on successful order creation
     showNotification('Order created successfully');
   } catch (error) {
-    console.error('There was a problem creating the order:', error);
+    // Handle validation errors with user-friendly messages
+    if (error.message.includes('Delivery time') || error.message.includes('Address')) {
+      showNotification(error.message, 3000); // Show validation errors longer
+    } else {
+      console.error('There was a problem creating the order:', error);
+      showNotification('Failed to create order. Please try again.', 3000);
+    }
   }
 });
 
@@ -380,3 +383,87 @@ document.addEventListener('click', function(event) {
     }
   });
 });
+
+// Value object for delivery time with validation
+class DeliveryTime {
+  constructor(value) {
+    if (!value) {
+      throw new Error('Delivery time is required');
+    }
+    
+    const date = new Date(value);
+    if (isNaN(date.getTime())) {
+      throw new Error('Invalid delivery time format. Use ISO 8601 format (YYYY-MM-DDTHH:MM)');
+    }
+    
+    const now = new Date();
+    if (date <= now) {
+      throw new Error('Delivery time must be in the future');
+    }
+    
+    // Check if delivery time is within business hours (9 AM - 10 PM)
+    const hours = date.getHours();
+    if (hours < 9 || hours >= 22) {
+      throw new Error('Delivery time must be between 9:00 AM and 10:00 PM');
+    }
+    
+    this.value = value;
+    this.date = date;
+  }
+  
+  toString() {
+    return this.value;
+  }
+  
+  toJSON() {
+    return this.value;
+  }
+}
+
+// Value object for address with validation
+class Address {
+  constructor(value) {
+    if (!value || value.trim().length === 0) {
+      throw new Error('Address is required');
+    }
+    
+    if (value.trim().length < 10) {
+      throw new Error('Address must be at least 10 characters long');
+    }
+    
+    if (value.trim().length > 200) {
+      throw new Error('Address must be less than 200 characters');
+    }
+    
+    // Basic format validation (should contain street number and name)
+    const addressPattern = /^\d+\s+[A-Za-z\s]+/;
+    if (!addressPattern.test(value.trim())) {
+      throw new Error('Address should start with a number followed by street name');
+    }
+    
+    this.value = value.trim();
+  }
+  
+  toString() {
+    return this.value;
+  }
+  
+  toJSON() {
+    return this.value;
+  }
+}
+
+// Order data class that uses value objects
+class OrderData {
+  constructor(deliveryTime, address) {
+    this.deliveryTime = new DeliveryTime(deliveryTime);
+    this.address = new Address(address);
+  }
+  
+  toJSON() {
+    return {
+      deliveryTime: this.deliveryTime.toJSON(),
+      address: this.address.toJSON()
+    };
+  }
+}
