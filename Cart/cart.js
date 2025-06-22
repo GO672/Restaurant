@@ -50,7 +50,7 @@ const createNumericInput = (item) => {
 
 // Helper function to set up numeric input event listeners
 const setupNumericInputListeners = (minusButton, numericDisplay, plusButton, item) => {
-  minusButton.addEventListener('click', () => {
+  minusButton.addEventListener('click', async () => {
     let value = parseInt(numericDisplay.textContent);
     value = Math.max(value - 1, 0);
     numericDisplay.textContent = value;
@@ -58,10 +58,15 @@ const setupNumericInputListeners = (minusButton, numericDisplay, plusButton, ite
     if (parseInt(numericDisplay.textContent) === 1) {
       minusButton.disabled = true;
     }
-    decreaseQuantity(item.id);
+    
+    try {
+      await cartService.updateQuantity(item.id, false); // decrease quantity
+    } catch (error) {
+      showNotification('Failed to update quantity', 2000);
+    }
   });
   
-  plusButton.addEventListener('click', () => {
+  plusButton.addEventListener('click', async () => {
     let value = parseInt(numericDisplay.textContent);
     value++;
     numericDisplay.textContent = value;
@@ -69,7 +74,12 @@ const setupNumericInputListeners = (minusButton, numericDisplay, plusButton, ite
     if (parseInt(numericDisplay.textContent) !== 1) {
       minusButton.disabled = false;
     }
-    addToCart(item.id);
+    
+    try {
+      await cartService.addItem(item.id);
+    } catch (error) {
+      showNotification('Failed to add item to cart', 2000);
+    }
   });
 };
 
@@ -91,8 +101,12 @@ const setupHoverEffects = (cartItem) => {
 const createTrashIcon = (item, cartItem) => {
   const trashIcon = document.createElement('i');
   trashIcon.classList.add('fa-solid', 'fa-trash');
-  trashIcon.addEventListener('click', () => {
-    removeItemFromCart(item.id, cartItem);
+  trashIcon.addEventListener('click', async () => {
+    try {
+      await cartService.removeItem(item.id, cartItem);
+    } catch (error) {
+      showNotification('Failed to remove item from cart', 2000);
+    }
   });
   return trashIcon;
 };
@@ -151,97 +165,6 @@ const displayCartItems = (cartData) => {
     
     cartItemsContainer.appendChild(cartItem);
   });
-};
-
-const removeItemFromCart = (dishId, cartItemElement) => {
-  const token = localStorage.getItem('token');
-  if (!token) {
-      console.error('No token found in localStorage.');
-      return;
-  }
-
-  fetch(`https://food-delivery.int.kreosoft.space/api/basket/dish/${dishId}?increase=false`, {
-      method: 'DELETE',
-      headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-      }
-  })
-  .then(response => {
-      if (!response.ok) {
-          throw new Error('Network response was not ok');
-      }
-      // Remove the cart item from the DOM
-      cartItemElement.remove();
-      // Check if the cart is empty after removing the item
-      checkCartEmptyState();
-  })
-  .catch(error => {
-      console.error('There was a problem removing the item from the cart:', error);
-  });
-};
-
-let debounceTimer;
-
-const debouncedFunction = async () => {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(async () => {
-    await getCartData();
-  }, 210);
-};
-
-const addToCart = async (dishId) => {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.error('No token found in localStorage.');
-      return;
-    }
-
-    const response = await fetch(`https://food-delivery.int.kreosoft.space/api/basket/dish/${dishId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-
-    console.log('Item added to cart successfully');
-    debouncedFunction();
-  } catch (error) {
-    console.error('There was a problem adding the dish to the cart:', error);
-  }
-};
-
-const decreaseQuantity = async (dishId) => {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.error('No token found in localStorage.');
-      return;
-    }
-
-    const response = await fetch(`https://food-delivery.int.kreosoft.space/api/basket/dish/${dishId}?increase=true`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-
-    console.log('Quantity decreased successfully');
-    debouncedFunction();
-  } catch (error) {
-    console.error('There was a problem decreasing the quantity of the dish:', error);
-  }
 };
 
 // Retrieve input values
@@ -310,62 +233,6 @@ createOrderButton.addEventListener('click', async () => {
       showNotification('Failed to create order. Please try again.', 3000);
     }
   }
-});
-
-const getCartData = () => {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    console.error('No token found in localStorage.');
-    return;
-  }
-
-  fetch('https://food-delivery.int.kreosoft.space/api/basket', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-    return response.json();
-  })
-  .then(data => {
-    console.log('Cart Data:', data);
-    displayCartItems(data);
-  })
-  .catch(error => {
-    console.error('There was a problem fetching cart data:', error);
-  });
-};
-
-getCartData();
-
-document.getElementById('logout-link').addEventListener('click', function(event) {
-  event.preventDefault(); // Prevent default action of the link
-
-  // Retrieve the token from localStorage
-  const token = localStorage.getItem('token');
-
-  fetch('https://food-delivery.int.kreosoft.space/api/account/logout', {
-      method: 'POST',
-      headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-      },
-  })
-  .then(response => {
-      if (response.ok) {            
-          localStorage.removeItem('token');
-          window.location.href = '/Login/login.html';
-      } else {
-          console.error('Logout failed');
-      }
-  })
-  .catch(error => {
-      console.error('Error during logout:', error);
-  });
 });
 
 // profile icon dropdown
@@ -467,3 +334,162 @@ class OrderData {
     };
   }
 }
+
+// Cart service class to encapsulate all cart operations
+class CartService {
+  constructor() {
+    this.baseUrl = 'https://food-delivery.int.kreosoft.space/api/basket';
+    this.debounceTimer = null;
+  }
+
+  // Get authentication token
+  getAuthToken() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    return token;
+  }
+
+  // Get auth headers
+  getAuthHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${this.getAuthToken()}`
+    };
+  }
+
+  // Debounced cart refresh
+  async refreshCart() {
+    clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(async () => {
+      await this.getCartData();
+    }, 210);
+  }
+
+  // Add item to cart
+  async addItem(itemId) {
+    try {
+      const response = await fetch(`${this.baseUrl}/dish/${itemId}`, {
+        method: 'POST',
+        headers: this.getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add item to cart');
+      }
+
+      console.log('Item added to cart successfully');
+      await this.refreshCart();
+    } catch (error) {
+      console.error('Error adding item to cart:', error);
+      throw error;
+    }
+  }
+
+  // Remove item from cart
+  async removeItem(itemId, cartItemElement) {
+    try {
+      const response = await fetch(`${this.baseUrl}/dish/${itemId}?increase=false`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove item from cart');
+      }
+
+      // Remove from DOM
+      cartItemElement.remove();
+      
+      // Check if cart is empty
+      this.checkCartEmptyState();
+    } catch (error) {
+      console.error('Error removing item from cart:', error);
+      throw error;
+    }
+  }
+
+  // Update item quantity
+  async updateQuantity(itemId, increase = false) {
+    try {
+      const response = await fetch(`${this.baseUrl}/dish/${itemId}?increase=${increase}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update item quantity');
+      }
+
+      console.log(`Quantity ${increase ? 'increased' : 'decreased'} successfully`);
+      await this.refreshCart();
+    } catch (error) {
+      console.error('Error updating item quantity:', error);
+      throw error;
+    }
+  }
+
+  // Get cart data
+  async getCartData() {
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getAuthToken()}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch cart data');
+      }
+
+      const data = await response.json();
+      console.log('Cart Data:', data);
+      displayCartItems(data);
+    } catch (error) {
+      console.error('Error fetching cart data:', error);
+      throw error;
+    }
+  }
+
+  // Check if cart is empty
+  checkCartEmptyState() {
+    const cartItems = document.querySelectorAll('.cart-item');
+    if (cartItems.length === 0) {
+      window.location.reload();
+    }
+  }
+}
+
+// Initialize cart service
+const cartService = new CartService();
+
+// Initialize cart service and load initial data
+cartService.getCartData();
+
+document.getElementById('logout-link').addEventListener('click', function(event) {
+  event.preventDefault(); // Prevent default action of the link
+
+  // Retrieve the token from localStorage
+  const token = localStorage.getItem('token');
+
+  fetch('https://food-delivery.int.kreosoft.space/api/account/logout', {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+      },
+  })
+  .then(response => {
+      if (response.ok) {            
+          localStorage.removeItem('token');
+          window.location.href = '/Login/login.html';
+      } else {
+          console.error('Logout failed');
+      }
+  })
+  .catch(error => {
+      console.error('Error during logout:', error);
+  });
+});
