@@ -230,174 +230,154 @@ const createValidatedOrder = (rawOrder) => {
   }
 };
 
-// Function to fetch and display orders
-const fetchAndDisplayOrders = async () => {
-  // Retrieve token from local storage
-  const token = localStorage.getItem('token');
-
-  // Make sure token exists
-  if (!token) {
-    console.error('No token found in local storage.');
-    return;
+// Order Display Service to handle order rendering and eliminate long method
+class OrderDisplayService {
+  constructor() {
+    this.ordersContainer = document.getElementById('orders-container');
   }
 
-  try {
-    // Make GET request to fetch orders
-    const response = await fetch('https://food-delivery.int.kreosoft.space/api/order', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (!response.ok) {
-      const errorMessage = await response.text();
-      throw new Error(`Server responded with status ${response.status}: ${errorMessage}`);
-    }
-
-    // Parse response JSON
-    const rawOrders = await response.json();
-
-    if (rawOrders.length === 0) {
-      // If there are no orders, display a message and hide the h1 element
-      document.getElementById('orders-container').innerHTML = '<h5>No orders yet...)</h5>';
-      document.querySelector('h1').style.display = 'none';
-      return;
-    }
-
-    // Validate and create order objects
-    const validatedOrders = rawOrders.map(rawOrder => {
-      try {
-        return createValidatedOrder(rawOrder);
-      } catch (error) {
-        console.error(`Skipping invalid order: ${error.message}`);
-        return null;
-      }
-    }).filter(order => order !== null); // Remove invalid orders
-
-    if (validatedOrders.length === 0) {
-      document.getElementById('orders-container').innerHTML = '<h5>No valid orders found...</h5>';
-      document.querySelector('h1').style.display = 'none';
-      return;
-    }
-
-    // Display orders on the page
-    displayOrders(validatedOrders);
-  } catch (error) {
-    console.error('There was a problem fetching orders:', error);
+  // Main method to display orders
+  displayOrders(orders) {
+    this.ordersContainer.innerHTML = ''; // Clear previous orders
+    orders.forEach(order => this.createOrderElement(order));
   }
-};
 
-// Function to display orders on the page
-const displayOrders = (orders) => {
-  const ordersContainer = document.getElementById('orders-container');
-  ordersContainer.innerHTML = ''; // Clear previous orders
-
-  orders.forEach(order => {
+  // Create individual order element
+  createOrderElement(order) {
     const orderElement = document.createElement('div');
     orderElement.classList.add('order');
 
-    // Order objects now already contain OrderDate and OrderStatus instances
-    const orderDate = order.orderTime;
-    const deliveryDate = order.deliveryTime;
-    const orderStatus = order.status;
+    // Create order components
+    this.addOrderTime(orderElement, order);
+    this.addOrderStatus(orderElement, order);
+    this.addDeliveryTime(orderElement, order);
+    this.addOrderPrice(orderElement, order);
+    this.addConfirmButton(orderElement, order);
 
+    // Append order element to container
+    this.ordersContainer.appendChild(orderElement);
+  }
+
+  // Add order time with click functionality
+  addOrderTime(orderElement, order) {
     const orderTime = document.createElement('div');
-    orderTime.textContent = `Order Time: ${orderDate.getFormattedDateTime()}`;
-    orderTime.classList.add('clickable'); // Add a class for styling and targeting
-    orderElement.appendChild(orderTime);
-
-    orderTime.addEventListener('click', async () => {
+    orderTime.textContent = `Order Time: ${order.orderTime.getFormattedDateTime()}`;
+    orderTime.classList.add('clickable');
+    orderTime.addEventListener('click', () => {
       window.location.href = `/orderDetails/orderD.html?id=${order.id}`;
     });
+    orderElement.appendChild(orderTime);
+  }
 
+  // Add order status with color coding
+  addOrderStatus(orderElement, order) {
     const status = document.createElement('div');
-    status.textContent = `Status: ${orderStatus.getDisplayText()}`;
-    status.style.color = orderStatus.getStatusColor(); // Apply status color
+    status.textContent = `Status: ${order.status.getDisplayText()}`;
+    status.style.color = order.status.getStatusColor();
     orderElement.appendChild(status);
+  }
 
-    const showNotification = (message, duration = 1500) => {
-      const notification = document.createElement('div');
-      notification.textContent = message;
-      notification.classList.add('notification');
-      document.body.appendChild(notification);
-    
-      setTimeout(() => {
-        notification.remove();
-      }, duration);
-    };
-
-    // Check if status can be confirmed using the value object
-    if (orderStatus.canBeConfirmed()) {
-      const confirmButton = document.createElement('button');
-      confirmButton.textContent = 'Confirm Order';
-      orderElement.classList.add('order-with-button');
-      confirmButton.addEventListener('click', async () => {
-        try {
-          const token = localStorage.getItem('token');
-          if (!token) {
-            console.error('No token found in localStorage.');
-            return;
-          }
-
-          const response = await fetch(`https://food-delivery.int.kreosoft.space/api/order/${order.id}/status`, {
-            method: 'POST',
-            headers: {
-              'accept': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: ''
-          });
-
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          
-          confirmButton.style.visibility = 'hidden';
-          
-          // Update status using the value object
-          const newStatus = orderStatus.getNextStatusAfterConfirmation();
-          order.status = newStatus; // Update the order object with new status
-          
-          // Update display
-          status.textContent = `Status: ${newStatus.getDisplayText()}`;
-          status.style.color = newStatus.getStatusColor();
-          
-          showNotification('Order Confirmed successfully');
-          
-        } catch (error) {
-          console.error('There was a problem confirming the order:', error);
-        }
-      });
-      orderElement.appendChild(confirmButton);
-    }
-
-    // Delivery Time with proper formatting
+  // Add delivery time with overdue indicators
+  addDeliveryTime(orderElement, order) {
     const deliveryTime = document.createElement('div');
-    deliveryTime.textContent = `Expected Delivery Time: ${deliveryDate.getFormattedDateTime()}`;
+    deliveryTime.textContent = `Expected Delivery Time: ${order.deliveryTime.getFormattedDateTime()}`;
     
-    // Add visual indicator if delivery is overdue
-    if (deliveryDate.isInPast() && !orderStatus.isDelivered()) {
-      deliveryTime.style.color = '#dc3545'; // Red for overdue
-      deliveryTime.textContent += ' (Overdue)';
-    } else if (deliveryDate.isToday()) {
-      deliveryTime.style.color = '#ffa500'; // Orange for today
-      deliveryTime.textContent += ' (Today)';
-    }
+    // Add visual indicators for delivery status
+    this.addDeliveryStatusIndicator(deliveryTime, order);
     
     orderElement.appendChild(deliveryTime);
+  }
 
-    // Price
+  // Add delivery status visual indicators
+  addDeliveryStatusIndicator(deliveryTimeElement, order) {
+    if (order.deliveryTime.isInPast() && !order.status.isDelivered()) {
+      deliveryTimeElement.style.color = '#dc3545'; // Red for overdue
+      deliveryTimeElement.textContent += ' (Overdue)';
+    } else if (order.deliveryTime.isToday()) {
+      deliveryTimeElement.style.color = '#ffa500'; // Orange for today
+      deliveryTimeElement.textContent += ' (Today)';
+    }
+  }
+
+  // Add order price
+  addOrderPrice(orderElement, order) {
     const price = document.createElement('div');
     price.textContent = `Total Order Cost: ${order.price} ₽`;
     orderElement.appendChild(price);
+  }
 
-    // Append order element to container
-    ordersContainer.appendChild(orderElement);
-  });
-};
+  // Add confirm button if order can be confirmed
+  addConfirmButton(orderElement, order) {
+    if (!order.status.canBeConfirmed()) return;
 
+    const confirmButton = document.createElement('button');
+    confirmButton.textContent = 'Confirm Order';
+    orderElement.classList.add('order-with-button');
+    confirmButton.addEventListener('click', () => this.handleOrderConfirmation(order, confirmButton));
+    orderElement.appendChild(confirmButton);
+  }
+
+  // Handle order confirmation
+  async handleOrderConfirmation(order, confirmButton) {
+    try {
+      await this.confirmOrderAPI(order.id);
+      
+      // Update UI
+      confirmButton.style.visibility = 'hidden';
+      this.updateOrderStatus(order);
+      this.showNotification('Order Confirmed successfully');
+      
+    } catch (error) {
+      console.error('There was a problem confirming the order:', error);
+    }
+  }
+
+  // API call to confirm order
+  async confirmOrderAPI(orderId) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('No token found in localStorage.');
+    }
+
+    const response = await fetch(`https://food-delivery.int.kreosoft.space/api/order/${orderId}/status`, {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: ''
+    });
+
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+  }
+
+  // Update order status after confirmation
+  updateOrderStatus(order) {
+    const newStatus = order.status.getNextStatusAfterConfirmation();
+    order.status = newStatus;
+    
+    // Update status display
+    const statusElement = order.element?.querySelector('div:nth-child(2)'); // Status is second child
+    if (statusElement) {
+      statusElement.textContent = `Status: ${newStatus.getDisplayText()}`;
+      statusElement.style.color = newStatus.getStatusColor();
+    }
+  }
+
+  // Show notification
+  showNotification(message, duration = 1500) {
+    const notification = document.createElement('div');
+    notification.textContent = message;
+    notification.classList.add('notification');
+    document.body.appendChild(notification);
+  
+    setTimeout(() => {
+      notification.remove();
+    }, duration);
+  }
+}
 
 function closePopup() {
   // Hide the close button
@@ -409,14 +389,8 @@ function closePopup() {
 }
 document.getElementById('close-popup').addEventListener('click', closePopup);
 
-
 // Call fetchAndDisplayOrders function to fetch and display orders
 fetchAndDisplayOrders();
-
-
-
-
-
 
 document.getElementById('logout-link').addEventListener('click', function(event) {
   event.preventDefault(); // Prevent default action of the link
@@ -444,9 +418,6 @@ document.getElementById('logout-link').addEventListener('click', function(event)
   });
 });
 
-
-
-
 // profile icon dropdown
 document.querySelector('.select-dropdown1').addEventListener('click', function() {
   const dropdownContent = this.querySelector('.dropdown-content');
@@ -462,92 +433,3 @@ document.addEventListener('click', function(event) {
     }
   });
 });
-
-// Utility functions that demonstrate the benefits of value objects
-
-// Filter orders by status
-const filterOrdersByStatus = (orders, targetStatus) => {
-  const statusToFilter = OrderStatus.fromString(targetStatus);
-  return orders.filter(order => order.status.equals(statusToFilter));
-};
-
-// Filter orders by date range
-const filterOrdersByDateRange = (orders, startDate, endDate) => {
-  const start = OrderDate.fromString(startDate);
-  const end = OrderDate.fromString(endDate);
-  
-  return orders.filter(order => {
-    const orderDate = order.orderTime;
-    return orderDate.isAfter(start) && orderDate.isBefore(end);
-  });
-};
-
-// Get overdue orders
-const getOverdueOrders = (orders) => {
-  return orders.filter(order => {
-    return order.deliveryTime.isInPast() && !order.status.isDelivered();
-  });
-};
-
-// Get orders that need attention (in process and overdue)
-const getOrdersNeedingAttention = (orders) => {
-  return orders.filter(order => {
-    return order.status.isInProcess() && order.deliveryTime.isInPast();
-  });
-};
-
-// Sort orders by delivery time
-const sortOrdersByDeliveryTime = (orders, ascending = true) => {
-  return [...orders].sort((a, b) => {
-    if (ascending) {
-      return a.deliveryTime.isBefore(b.deliveryTime) ? -1 : 1;
-    } else {
-      return a.deliveryTime.isAfter(b.deliveryTime) ? -1 : 1;
-    }
-  });
-};
-
-// Get order statistics
-const getOrderStatistics = (orders) => {
-  const stats = {
-    total: orders.length,
-    byStatus: {},
-    overdue: 0,
-    today: 0,
-    thisWeek: 0
-  };
-
-  // Count by status
-  OrderStatus.getAllStatuses().forEach(statusValue => {
-    const status = OrderStatus.fromString(statusValue);
-    stats.byStatus[status.getDisplayText()] = 0;
-  });
-
-  orders.forEach(order => {
-    // Count by status
-    const statusKey = order.status.getDisplayText();
-    stats.byStatus[statusKey] = (stats.byStatus[statusKey] || 0) + 1;
-
-    // Count overdue
-    if (order.deliveryTime.isInPast() && !order.status.isDelivered()) {
-      stats.overdue++;
-    }
-
-    // Count today's deliveries
-    if (order.deliveryTime.isToday()) {
-      stats.today++;
-    }
-
-    // Count this week's deliveries (within 7 days)
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoDate = OrderDate.fromDate(weekAgo);
-    if (order.deliveryTime.isAfter(weekAgoDate)) {
-      stats.thisWeek++;
-    }
-  });
-
-  return stats;
-};
-
-// Function to fetch and display orders
