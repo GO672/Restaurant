@@ -645,10 +645,209 @@ class PaginationService {
   }
 }
 
+// Rating Service to centralize rating-related API operations
+class RatingService {
+  constructor(apiClient) {
+    this.apiClient = apiClient;
+  }
+
+  // Set rating for a dish
+  async setRating(dishId, ratingScore) {
+    try {
+      await this.apiClient.postAuth(`/dish/${dishId}/rating?ratingScore=${ratingScore}`);
+      console.log(`Rating ${ratingScore} set successfully for dish ${dishId}`);
+      return true;
+    } catch (error) {
+      console.error('Error setting rating:', error);
+      throw error;
+    }
+  }
+
+  // Check if user can rate a dish
+  async checkRatingPermission(dishId) {
+    try {
+      return await this.apiClient.getAuth(`/dish/${dishId}/rating/check`);
+    } catch (error) {
+      console.error('Error checking rating permission:', error);
+      return false;
+    }
+  }
+
+  // Enable rating functionality for a dish
+  enableRatingForDish(dishId, ratingFieldset) {
+    this.checkRatingPermission(dishId)
+      .then(canRate => {
+        if (canRate) {
+          const ratingInputs = ratingFieldset.querySelectorAll('input');
+          ratingInputs.forEach(input => {
+            input.disabled = false;
+          });
+
+          ratingFieldset.addEventListener('change', async (event) => {
+            const selectedInput = event.target;
+            if (selectedInput.type === 'radio') {
+              const selectedRating = parseFloat(selectedInput.value);
+              try {
+                await this.setRating(dishId, selectedRating);
+              } catch (error) {
+                console.error('Failed to set rating:', error);
+              }
+            }
+          });
+        }
+      })
+      .catch(error => {
+        console.error('Error enabling rating:', error);
+      });
+  }
+}
+
+// Cart Service to centralize cart-related API operations
+class CartService {
+  constructor(apiClient) {
+    this.apiClient = apiClient;
+    this.cartDataMap = new Map();
+  }
+
+  // Add dish to cart
+  async addToCart(dishId) {
+    try {
+      await this.apiClient.postAuth(`/basket/dish/${dishId}`);
+      console.log(`Dish ${dishId} added to cart successfully`);
+      return true;
+    } catch (error) {
+      console.error('Error adding dish to cart:', error);
+      throw error;
+    }
+  }
+
+  // Remove dish from cart
+  async removeFromCart(dishId) {
+    try {
+      await this.apiClient.deleteAuth(`/basket/dish/${dishId}?increase=true`);
+      console.log(`Dish ${dishId} removed from cart successfully`);
+      return true;
+    } catch (error) {
+      console.error('Error removing dish from cart:', error);
+      throw error;
+    }
+  }
+
+  // Get cart data
+  async getCartData() {
+    try {
+      const cartData = await this.apiClient.getAuth('/basket');
+      return cartData;
+    } catch (error) {
+      console.error('Error fetching cart data:', error);
+      return null;
+    }
+  }
+
+  // Update local cart data
+  updateLocalCart(dishId, quantity) {
+    if (quantity > 0) {
+      this.cartDataMap.set(dishId, quantity);
+    } else {
+      this.cartDataMap.delete(dishId);
+    }
+  }
+
+  // Get local cart quantity for a dish
+  getLocalQuantity(dishId) {
+    return this.cartDataMap.get(dishId) || 0;
+  }
+
+  // Create cart UI elements
+  createCartUI(dishId, card) {
+    const addToCartBtn = document.createElement('button');
+    addToCartBtn.textContent = 'Add to Cart';
+    addToCartBtn.addEventListener('click', () => this.handleAddToCart(dishId, card));
+
+    const cartSection = document.createElement('div');
+    cartSection.classList.add('cart-section');
+    cartSection.style.display = 'none';
+
+    const quantityContainer = document.createElement('div');
+    quantityContainer.classList.add('quantity-container');
+
+    const decreaseBtn = document.createElement('button');
+    decreaseBtn.textContent = '-';
+    decreaseBtn.addEventListener('click', () => this.handleDecreaseQuantity(dishId, card));
+
+    const quantity = document.createElement('span');
+    quantity.classList.add('quantity');
+    quantity.textContent = '0';
+
+    const increaseBtn = document.createElement('button');
+    increaseBtn.textContent = '+';
+    increaseBtn.addEventListener('click', () => this.handleAddToCart(dishId, card));
+
+    quantityContainer.appendChild(decreaseBtn);
+    quantityContainer.appendChild(quantity);
+    quantityContainer.appendChild(increaseBtn);
+
+    cartSection.appendChild(quantityContainer);
+
+    return { addToCartBtn, cartSection };
+  }
+
+  // Handle add to cart action
+  async handleAddToCart(dishId, card) {
+    try {
+      await this.addToCart(dishId);
+      
+      const quantityElement = card.querySelector('.quantity');
+      let currentQuantity = parseInt(quantityElement.textContent);
+      currentQuantity++;
+      quantityElement.textContent = currentQuantity;
+
+      this.updateLocalCart(dishId, currentQuantity);
+
+      // Show cart section if hidden
+      const cartSection = card.querySelector('.cart-section');
+      if (cartSection && cartSection.style.display === 'none') {
+        cartSection.style.display = 'block';
+      }
+    } catch (error) {
+      console.error('Failed to add to cart:', error);
+    }
+  }
+
+  // Handle decrease quantity action
+  async handleDecreaseQuantity(dishId, card) {
+    try {
+      await this.removeFromCart(dishId);
+      
+      const quantityElement = card.querySelector('.quantity');
+      let currentQuantity = parseInt(quantityElement.textContent);
+      
+      if (currentQuantity > 0) {
+        currentQuantity--;
+        quantityElement.textContent = currentQuantity;
+
+        this.updateLocalCart(dishId, currentQuantity);
+
+        // Hide cart section if quantity is 0
+        if (currentQuantity === 0) {
+          const cartSection = card.querySelector('.cart-section');
+          if (cartSection) {
+            cartSection.style.display = 'none';
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to decrease quantity:', error);
+    }
+  }
+}
+
 // Initialize services
 const apiClient = new ApiClient();
 const authService = new AuthService();
 const urlParamsService = new URLParamsService();
+const ratingService = new RatingService(apiClient);
+const cartService = new CartService(apiClient);
 
 // Initialize page state
 const pageState = new PageState();
@@ -745,19 +944,18 @@ function fetchData(pageNumber) {
 
                 const ratingFieldset = document.createElement('div');
                 ratingFieldset.classList.add('rate');
-                // Use dish ID as part of the rating elements' IDs
                 ratingFieldset.setAttribute('data-dish-id', dish.id);
 
                 for (let i = 20; i > 0; i--) {
                     const ratingInput = document.createElement('input');
                     ratingInput.setAttribute('type', 'radio');
-                    ratingInput.setAttribute('id', `rating${i}-${dish.id}`); // Include dish ID
+                    ratingInput.setAttribute('id', `rating${i}-${dish.id}`);
                     ratingInput.setAttribute('name', `${dish.id}-rating`);
                     const value = i % 2 === 0 ? i / 2 : (i + 1) / 2;
                     ratingInput.setAttribute('value', `${value}`);
 
                     const ratingLabel = document.createElement('label');
-                    ratingLabel.setAttribute('for', `rating${i}-${dish.id}`); // Include dish ID
+                    ratingLabel.setAttribute('for', `rating${i}-${dish.id}`);
                     ratingLabel.setAttribute('title', `${value} stars`);
                     if (i % 2 !== 0) {
                         ratingLabel.classList.add('half');
@@ -771,163 +969,21 @@ function fetchData(pageNumber) {
                 const halfStar = dish.rating - fullStars >= 0.5;
 
                 const ratingInputs = ratingFieldset.querySelectorAll('input');
-
                 const fullStarIndex = 20 - fullStars * 2;
 
-                // console.log(ratingInputs[fullStarIndex].checked)
-                if(ratingInputs[fullStarIndex])ratingInputs[fullStarIndex].checked = true;
-
-                if (halfStar) {
-                    if(ratingInputs[fullStarIndex])ratingInputs[fullStarIndex - 1].checked = true;
+                if(ratingInputs[fullStarIndex]) {
+                    ratingInputs[fullStarIndex].checked = true;
                 }
 
-                const setRatingScore = async (dishId, ratingScore) => {
-                    try {
-                        const token = localStorage.getItem('token');
-                        if (!token) {
-                            throw new Error('No token found in localStorage.');
-                        }
-                
-                        const response = await fetch(`https://food-delivery.int.kreosoft.space/api/dish/${dishId}/rating?ratingScore=${ratingScore}`, {
-                            method: 'POST',
-                            headers: {
-                                'accept': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-                
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                
-                        console.log('Rating score set successfully.');
-                    } catch (error) {
-                        console.error('There was a problem setting the rating score:', error);
-                    }
-                };
+                if (halfStar && ratingInputs[fullStarIndex - 1]) {
+                    ratingInputs[fullStarIndex - 1].checked = true;
+                }
 
-                const checkRatingPermission = async (dishId) => {
-                    try {
-                        const token = localStorage.getItem('token');
-                        if (!token) {
-                            throw new Error('No token found in localStorage.');
-                        }
-                
-                        const response = await fetch(`https://food-delivery.int.kreosoft.space/api/dish/${dishId}/rating/check`, {
-                            method: 'GET',
-                            headers: {
-                                'accept': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-                
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                
-                        const responseData = await response.json();
-                        return responseData;
-                    } catch (error) {
-                        console.error('There was a problem checking rating permission:', error);
-                        return null;
-                    }
-                };
+                // Enable rating functionality using the service
+                ratingService.enableRatingForDish(dish.id, ratingFieldset);
 
-                checkRatingPermission(dish.id)
-                    .then(responseData => {
-                        if (responseData) {
-                            ratingInputs.forEach(input => {
-                                input.disabled = false;
-                            });
-
-                            ratingFieldset.addEventListener('change', () => {
-                                const selectedRating = parseFloat(document.querySelector('input[name="' + dish.id + '-rating"]:checked').value);
-                                setRatingScore(dish.id, selectedRating);
-                                console.log(selectedRating);
-                            });
-                        }
-                    })
-                    .catch(error => {
-                        console.error('There was a problem checking rating permission:', error);
-                    });
-
-                const toggleVisibility = () => {
-                    const cartSection = card.querySelector('.cart-section');
-                    if (cartSection) {
-                        cartSection.style.display = cartSection.style.display === 'none' ? 'block' : 'none';
-                    }
-                };
-
-                const addToCart = (dishId) => {
-                    const quantityElement = card.querySelector('.quantity');
-                    let currentQuantity = parseInt(quantityElement.textContent);
-                    currentQuantity++;
-                    quantityElement.textContent = currentQuantity;
-
-                    // Update cart data
-                    if (cartDataMap.has(dishId)) {
-                        cartDataMap.set(dishId, currentQuantity);
-                    } else {
-                        cartDataMap.set(dishId, currentQuantity);
-                    }
-
-                    // Show cart section if hidden
-                    const cartSection = card.querySelector('.cart-section');
-                    if (cartSection && cartSection.style.display === 'none') {
-                        cartSection.style.display = 'block';
-                    }
-                };
-
-                const decreaseQuantity = (dishId) => {
-                    const quantityElement = card.querySelector('.quantity');
-                    let currentQuantity = parseInt(quantityElement.textContent);
-                    
-                    if (currentQuantity > 0) {
-                        currentQuantity--;
-                        quantityElement.textContent = currentQuantity;
-
-                        // Update cart data
-                        if (currentQuantity === 0) {
-                            cartDataMap.delete(dishId);
-                            // Hide cart section
-                            const cartSection = card.querySelector('.cart-section');
-                            if (cartSection) {
-                                cartSection.style.display = 'none';
-                            }
-                        } else {
-                            cartDataMap.set(dishId, currentQuantity);
-                        }
-                    }
-                };
-
-                const addToCartBtn = document.createElement('button');
-                addToCartBtn.textContent = 'Add to Cart';
-                addToCartBtn.addEventListener('click', () => addToCart(dish.id));
-
-                const cartSection = document.createElement('div');
-                cartSection.classList.add('cart-section');
-                cartSection.style.display = 'none';
-
-                const quantityContainer = document.createElement('div');
-                quantityContainer.classList.add('quantity-container');
-
-                const decreaseBtn = document.createElement('button');
-                decreaseBtn.textContent = '-';
-                decreaseBtn.addEventListener('click', () => decreaseQuantity(dish.id));
-
-                const quantity = document.createElement('span');
-                quantity.classList.add('quantity');
-                quantity.textContent = '0';
-
-                const increaseBtn = document.createElement('button');
-                increaseBtn.textContent = '+';
-                increaseBtn.addEventListener('click', () => addToCart(dish.id));
-
-                quantityContainer.appendChild(decreaseBtn);
-                quantityContainer.appendChild(quantity);
-                quantityContainer.appendChild(increaseBtn);
-
-                cartSection.appendChild(quantityContainer);
+                // Create cart UI using the service
+                const { addToCartBtn, cartSection } = cartService.createCartUI(dish.id, card);
 
                 container.appendChild(name);
                 container.appendChild(category);
@@ -947,39 +1003,14 @@ function fetchData(pageNumber) {
         }
     }
     
-    const getCartData = () => {
-        const token = localStorage.getItem('token');
-        // if (!token) {
-        //   console.error('No token found in localStorage.');
-        //   return;
-        // }
-      
-        fetch('https://food-delivery.int.kreosoft.space/api/basket', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          return response.json();
-        })
-        .then(data => {
-          for (let i = 0; i < data.length; i++) {
-            cartDataMap.set(data[i].name, data[i].amount);
-          }
-        })
-        .catch(error => {
-          console.error('There was a problem fetching cart data:', error);
-        })
-        .finally(() => {
-            getDishes();
-        })
-      };
-      
-      getCartData();
+    getDishes();
+    
+    // Get cart data using the service
+    cartService.getCartData().then(cartData => {
+        if (cartData) {
+            console.log('Cart data loaded:', cartData);
+        }
+    });
 }
 
 // REMOVE THIS ENTIRE SECTION:
