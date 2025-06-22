@@ -1,142 +1,248 @@
-document.addEventListener('DOMContentLoaded', function () {
-  const token = localStorage.getItem('token');
-  if (token) {
-    fetchUserProfile(token);
-  } else {
-    console.error('Token not found');
+// API Service to centralize HTTP requests and eliminate data clumps
+class ProfileApiService {
+  constructor() {
+    this.baseUrl = 'https://food-delivery.int.kreosoft.space/api';
   }
 
-  const updateProfileBtn = document.getElementById('updateProfileBtn');
-  updateProfileBtn.addEventListener('click', updateProfile);
-});
-
-function fetchUserProfile(token) {
-  fetch('https://food-delivery.int.kreosoft.space/api/account/profile', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error('Failed to fetch profile data');
-    }
-    return response.json();
-  })
-  .then(profileData => {
-    updateProfileUI(profileData);
-  })
-  .catch(error => {
-    console.error('Error fetching profile data:', error);
-  });
-}
-
-function updateProfileUI(profileData) {
-  document.getElementById('fullName').value = profileData.fullName;
-  document.getElementById('birthDate').value = profileData.birthDate.split('T')[0];
-  document.getElementById('address').value = profileData.address;
-  document.getElementById('phoneNumber').value = profileData.phoneNumber;
-
-  // Set value for gender and email inputs
-  document.getElementById('gender').value = profileData.gender;
-  document.getElementById('email').value = profileData.email;
-
-
-  const fullNameSpans = document.querySelectorAll('.fullName');
-  fullNameSpans.forEach(span => {
-    span.textContent = profileData.fullName;
-  });
-
-  // Disable gender and email inputs
-  document.getElementById('gender').disabled = true;
-  document.getElementById('email').disabled = true;
-}
-
-
-
-function updateProfile() {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    console.error('Token not found');
-    return;
+  // Get authentication token
+  getAuthToken() {
+    return localStorage.getItem('token');
   }
 
-  const fullName = document.getElementById('fullName').value;
-  const birthDate = document.getElementById('birthDate').value;
-  const address = document.getElementById('address').value;
-  const phoneNumber = document.getElementById('phoneNumber').value;
+  // Check if user is authenticated
+  isAuthenticated() {
+    return !!this.getAuthToken();
+  }
 
-  const profileData = {
-    fullName: fullName,
-    birthDate: birthDate,
-    address: address,
-    phoneNumber: phoneNumber
-  };
-
-  fetch('https://food-delivery.int.kreosoft.space/api/account/profile', {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify(profileData)
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error('Failed to update profile data');
-    } else {
-      alert('Profile information updated successfully!');
+  // Get common headers for authenticated requests
+  getAuthHeaders() {
+    const token = this.getAuthToken();
+    if (!token) {
+      throw new Error('Authentication required');
     }
-  })
-  .catch(error => {
-    console.error('Error updating profile data:', error);
-  });
-}
+    return {
+      'Authorization': `Bearer ${token}`
+    };
+  }
 
+  // Get common headers for JSON requests
+  getJsonHeaders() {
+    return {
+      'Content-Type': 'application/json'
+    };
+  }
 
+  // Get authenticated JSON headers
+  getAuthJsonHeaders() {
+    return {
+      ...this.getJsonHeaders(),
+      ...this.getAuthHeaders()
+    };
+  }
 
+  // Fetch user profile
+  async fetchUserProfile() {
+    try {
+      const response = await fetch(`${this.baseUrl}/account/profile`, {
+        method: 'GET',
+        headers: this.getAuthHeaders()
+      });
 
-document.getElementById('logout-link').addEventListener('click', function(event) {
-  event.preventDefault(); // Prevent default action of the link
-
-  // Retrieve the token from localStorage
-  const token = localStorage.getItem('token');
-
-  fetch('https://food-delivery.int.kreosoft.space/api/account/logout', {
-      method: 'POST',
-      headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-      },
-  })
-  .then(response => {
-      if (response.ok) {            
-          localStorage.removeItem('token');
-          window.location.href = '/Login/login.html';
-      } else {
-          console.error('Logout failed');
+      if (!response.ok) {
+        throw new Error('Failed to fetch profile data');
       }
-  })
-  .catch(error => {
-      console.error('Error during logout:', error);
-  });
-});
 
-
-
-
-// profile icon dropdown
-document.querySelector('.select-dropdown1').addEventListener('click', function() {
-  const dropdownContent = this.querySelector('.dropdown-content');
-  dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
-});
-
-// Close dropdown content when clicking outside the dropdown
-document.addEventListener('click', function(event) {
-  const dropdowns = document.querySelectorAll('.select-dropdown1');
-  dropdowns.forEach(function(dropdown) {
-    if (!dropdown.contains(event.target)) {
-      dropdown.querySelector('.dropdown-content').style.display = 'none';
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+      throw error;
     }
-  });
+  }
+
+  // Update user profile
+  async updateUserProfile(profileData) {
+    try {
+      const response = await fetch(`${this.baseUrl}/account/profile`, {
+        method: 'PUT',
+        headers: this.getAuthJsonHeaders(),
+        body: JSON.stringify(profileData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update profile data');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating profile data:', error);
+      throw error;
+    }
+  }
+
+  // Logout user
+  async logout() {
+    try {
+      const response = await fetch(`${this.baseUrl}/account/logout`, {
+        method: 'POST',
+        headers: this.getAuthJsonHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Logout failed');
+      }
+
+      localStorage.removeItem('token');
+      return true;
+    } catch (error) {
+      console.error('Error during logout:', error);
+      throw error;
+    }
+  }
+}
+
+// Profile UI Service to handle DOM manipulations
+class ProfileUIService {
+  constructor(apiService) {
+    this.apiService = apiService;
+  }
+
+  // Update profile UI with user data
+  updateProfileUI(profileData) {
+    // Update form fields
+    document.getElementById('fullName').value = profileData.fullName;
+    document.getElementById('birthDate').value = profileData.birthDate.split('T')[0];
+    document.getElementById('address').value = profileData.address;
+    document.getElementById('phoneNumber').value = profileData.phoneNumber;
+    document.getElementById('gender').value = profileData.gender;
+    document.getElementById('email').value = profileData.email;
+
+    // Update display spans
+    const fullNameSpans = document.querySelectorAll('.fullName');
+    fullNameSpans.forEach(span => {
+      span.textContent = profileData.fullName;
+    });
+
+    // Disable non-editable fields
+    document.getElementById('gender').disabled = true;
+    document.getElementById('email').disabled = true;
+  }
+
+  // Get profile data from form
+  getProfileDataFromForm() {
+    return {
+      fullName: document.getElementById('fullName').value,
+      birthDate: document.getElementById('birthDate').value,
+      address: document.getElementById('address').value,
+      phoneNumber: document.getElementById('phoneNumber').value
+    };
+  }
+
+  // Show notification
+  showNotification(message, isSuccess = true) {
+    if (isSuccess) {
+      alert('Profile information updated successfully!');
+    } else {
+      alert(`Error: ${message}`);
+    }
+  }
+}
+
+// Profile Controller to orchestrate profile operations
+class ProfileController {
+  constructor() {
+    this.apiService = new ProfileApiService();
+    this.uiService = new ProfileUIService(this.apiService);
+    this.init();
+  }
+
+  // Initialize the profile page
+  init() {
+    if (!this.apiService.isAuthenticated()) {
+      console.error('Token not found');
+      return;
+    }
+
+    this.loadUserProfile();
+    this.setupEventListeners();
+  }
+
+  // Load user profile data
+  async loadUserProfile() {
+    try {
+      const profileData = await this.apiService.fetchUserProfile();
+      this.uiService.updateProfileUI(profileData);
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+    }
+  }
+
+  // Update user profile
+  async updateProfile() {
+    try {
+      const profileData = this.uiService.getProfileDataFromForm();
+      await this.apiService.updateUserProfile(profileData);
+      this.uiService.showNotification('Profile updated successfully', true);
+    } catch (error) {
+      this.uiService.showNotification(error.message, false);
+    }
+  }
+
+  // Handle logout
+  async handleLogout(event) {
+    event.preventDefault();
+    
+    try {
+      await this.apiService.logout();
+      window.location.href = '/Login/login.html';
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  }
+
+  // Setup event listeners
+  setupEventListeners() {
+    // Update profile button
+    const updateProfileBtn = document.getElementById('updateProfileBtn');
+    if (updateProfileBtn) {
+      updateProfileBtn.addEventListener('click', () => this.updateProfile());
+    }
+
+    // Logout link
+    const logoutLink = document.getElementById('logout-link');
+    if (logoutLink) {
+      logoutLink.addEventListener('click', (event) => this.handleLogout(event));
+    }
+
+    // Profile dropdown
+    this.setupDropdownHandlers();
+  }
+
+  // Setup dropdown functionality
+  setupDropdownHandlers() {
+    const dropdown = document.querySelector('.select-dropdown1');
+    if (dropdown) {
+      dropdown.addEventListener('click', function() {
+        const dropdownContent = this.querySelector('.dropdown-content');
+        dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
+      });
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+      const dropdowns = document.querySelectorAll('.select-dropdown1');
+      dropdowns.forEach(function(dropdown) {
+        if (!dropdown.contains(event.target)) {
+          const dropdownContent = dropdown.querySelector('.dropdown-content');
+          if (dropdownContent) {
+            dropdownContent.style.display = 'none';
+          }
+        }
+      });
+    });
+  }
+}
+
+// Initialize profile controller when DOM is loaded
+document.addEventListener('DOMContentLoaded', function () {
+  new ProfileController();
 });
