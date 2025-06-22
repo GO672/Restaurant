@@ -1,3 +1,33 @@
+// Configuration object to eliminate magic numbers and make timing values explicit
+const Config = {
+  // Debounce timing for cart operations (prevents excessive API calls during rapid user interactions)
+  DEBOUNCE_DELAY_MS: 210,
+  
+  // Notification display durations
+  NOTIFICATION: {
+    DEFAULT_DURATION_MS: 1500,        // Standard notification duration
+    ERROR_DURATION_MS: 2000,          // Error messages shown longer for better visibility
+    VALIDATION_ERROR_DURATION_MS: 3000 // Validation errors shown longest for user comprehension
+  },
+  
+  // Hover effect timing
+  HOVER: {
+    SHOW_TRASH_DELAY_MS: 100          // Delay before showing trash icon on hover
+  },
+  
+  // Business hours for delivery validation
+  BUSINESS_HOURS: {
+    OPEN_HOUR: 9,                     // Restaurant opens at 9 AM
+    CLOSE_HOUR: 22                    // Restaurant closes at 10 PM
+  },
+  
+  // Address validation constraints
+  ADDRESS: {
+    MIN_LENGTH: 10,                   // Minimum address length
+    MAX_LENGTH: 200                   // Maximum address length
+  }
+};
+
 // Value object for delivery time with validation
 class DeliveryTime {
   constructor(value) {
@@ -15,10 +45,10 @@ class DeliveryTime {
       throw new Error('Delivery time must be in the future');
     }
     
-    // Check if delivery time is within business hours (9 AM - 10 PM)
+    // Check if delivery time is within business hours
     const hours = date.getHours();
-    if (hours < 9 || hours >= 22) {
-      throw new Error('Delivery time must be between 9:00 AM and 10:00 PM');
+    if (hours < Config.BUSINESS_HOURS.OPEN_HOUR || hours >= Config.BUSINESS_HOURS.CLOSE_HOUR) {
+      throw new Error(`Delivery time must be between ${Config.BUSINESS_HOURS.OPEN_HOUR}:00 AM and ${Config.BUSINESS_HOURS.CLOSE_HOUR}:00 PM`);
     }
     
     this.value = value;
@@ -41,12 +71,12 @@ class Address {
       throw new Error('Address is required');
     }
     
-    if (value.trim().length < 10) {
-      throw new Error('Address must be at least 10 characters long');
+    if (value.trim().length < Config.ADDRESS.MIN_LENGTH) {
+      throw new Error(`Address must be at least ${Config.ADDRESS.MIN_LENGTH} characters long`);
     }
     
-    if (value.trim().length > 200) {
-      throw new Error('Address must be less than 200 characters');
+    if (value.trim().length > Config.ADDRESS.MAX_LENGTH) {
+      throw new Error(`Address must be less than ${Config.ADDRESS.MAX_LENGTH} characters`);
     }
     
     // Basic format validation (should contain street number and name)
@@ -293,7 +323,7 @@ class CartService {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = setTimeout(async () => {
         await this.getCartData();
-      }, 210);
+      }, Config.DEBOUNCE_DELAY_MS);
     } catch (error) {
       console.error('Error adding item to cart:', error);
       throw error;
@@ -326,7 +356,7 @@ class CartService {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = setTimeout(async () => {
         await this.getCartData();
-      }, 210);
+      }, Config.DEBOUNCE_DELAY_MS);
     } catch (error) {
       console.error('Error updating item quantity:', error);
       throw error;
@@ -378,7 +408,7 @@ class CartManager {
       await this.cartService.getCartData();
     } catch (error) {
       console.error('Failed to load cart data:', error);
-      this.showNotification('Failed to load cart', 2000);
+      this.showNotification('Failed to load cart', Config.NOTIFICATION.ERROR_DURATION_MS);
     }
   }
 
@@ -415,10 +445,10 @@ class CartManager {
       this.showNotification('Order created successfully');
     } catch (error) {
       if (error.message.includes('Delivery time') || error.message.includes('Address')) {
-        this.showNotification(error.message, 3000);
+        this.showNotification(error.message, Config.NOTIFICATION.VALIDATION_ERROR_DURATION_MS);
       } else {
         console.error('Order creation failed:', error);
-        this.showNotification('Failed to create order. Please try again.', 3000);
+        this.showNotification('Failed to create order. Please try again.', Config.NOTIFICATION.VALIDATION_ERROR_DURATION_MS);
       }
     }
   }
@@ -541,7 +571,7 @@ class CartManager {
       try {
         await this.cartService.updateQuantity(item.id, false);
       } catch (error) {
-        this.showNotification('Failed to update quantity', 2000);
+        this.showNotification('Failed to update quantity', Config.NOTIFICATION.DEFAULT_DURATION_MS);
       }
     });
     
@@ -557,7 +587,7 @@ class CartManager {
       try {
         await this.cartService.addItem(item.id);
       } catch (error) {
-        this.showNotification('Failed to add item to cart', 2000);
+        this.showNotification('Failed to add item to cart', Config.NOTIFICATION.DEFAULT_DURATION_MS);
       }
     });
   }
@@ -567,7 +597,7 @@ class CartManager {
     cartItem.addEventListener('mouseenter', () => {
       cartItem.hoverTimeout = setTimeout(() => {
         cartItem.classList.add('show-trash');
-      }, 100);
+      }, Config.HOVER.SHOW_TRASH_DELAY_MS);
     });
     
     cartItem.addEventListener('mouseleave', () => {
@@ -584,7 +614,7 @@ class CartManager {
       try {
         await this.cartService.removeItem(item.id, cartItem);
       } catch (error) {
-        this.showNotification('Failed to remove item from cart', 2000);
+        this.showNotification('Failed to remove item from cart', Config.NOTIFICATION.DEFAULT_DURATION_MS);
       }
     });
     return trashIcon;
@@ -604,7 +634,7 @@ class CartManager {
   }
 
   // Show notification
-  showNotification(message, duration = 1500) {
+  showNotification(message, duration = Config.NOTIFICATION.DEFAULT_DURATION_MS) {
     const notification = document.createElement('div');
     notification.textContent = message;
     notification.classList.add('notification');
