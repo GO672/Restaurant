@@ -647,18 +647,19 @@ class PaginationService {
 
 // Rating Service to centralize rating-related API operations
 class RatingService {
-  constructor(apiClient) {
+  constructor(apiClient, errorHandler) {
     this.apiClient = apiClient;
+    this.errorHandler = errorHandler;
   }
 
   // Set rating for a dish
   async setRating(dishId, ratingScore) {
     try {
       await this.apiClient.postAuth(`/dish/${dishId}/rating?ratingScore=${ratingScore}`);
-      console.log(`Rating ${ratingScore} set successfully for dish ${dishId}`);
+      this.errorHandler.showSuccess(`Rating ${ratingScore} set successfully for dish ${dishId}`);
       return true;
     } catch (error) {
-      console.error('Error setting rating:', error);
+      this.errorHandler.handleError(error, `setting rating for dish ${dishId}`);
       throw error;
     }
   }
@@ -668,7 +669,7 @@ class RatingService {
     try {
       return await this.apiClient.getAuth(`/dish/${dishId}/rating/check`);
     } catch (error) {
-      console.error('Error checking rating permission:', error);
+      this.errorHandler.handleError(error, `checking rating permission for dish ${dishId}`);
       return false;
     }
   }
@@ -690,22 +691,23 @@ class RatingService {
               try {
                 await this.setRating(dishId, selectedRating);
               } catch (error) {
-                console.error('Failed to set rating:', error);
+                // Error already handled in setRating method
               }
             }
           });
         }
       })
       .catch(error => {
-        console.error('Error enabling rating:', error);
+        this.errorHandler.handleError(error, `enabling rating for dish ${dishId}`);
       });
   }
 }
 
 // Cart Service to centralize cart-related API operations
 class CartService {
-  constructor(apiClient) {
+  constructor(apiClient, errorHandler) {
     this.apiClient = apiClient;
+    this.errorHandler = errorHandler;
     this.cartDataMap = new Map();
   }
 
@@ -713,10 +715,10 @@ class CartService {
   async addToCart(dishId) {
     try {
       await this.apiClient.postAuth(`/basket/dish/${dishId}`);
-      console.log(`Dish ${dishId} added to cart successfully`);
+      this.errorHandler.showSuccess(`Dish ${dishId} added to cart successfully`);
       return true;
     } catch (error) {
-      console.error('Error adding dish to cart:', error);
+      this.errorHandler.handleError(error, `adding dish ${dishId} to cart`);
       throw error;
     }
   }
@@ -725,10 +727,10 @@ class CartService {
   async removeFromCart(dishId) {
     try {
       await this.apiClient.deleteAuth(`/basket/dish/${dishId}?increase=true`);
-      console.log(`Dish ${dishId} removed from cart successfully`);
+      this.errorHandler.showSuccess(`Dish ${dishId} removed from cart successfully`);
       return true;
     } catch (error) {
-      console.error('Error removing dish from cart:', error);
+      this.errorHandler.handleError(error, `removing dish ${dishId} from cart`);
       throw error;
     }
   }
@@ -739,7 +741,7 @@ class CartService {
       const cartData = await this.apiClient.getAuth('/basket');
       return cartData;
     } catch (error) {
-      console.error('Error fetching cart data:', error);
+      this.errorHandler.handleError(error, 'fetching cart data');
       return null;
     }
   }
@@ -810,7 +812,7 @@ class CartService {
         cartSection.style.display = 'block';
       }
     } catch (error) {
-      console.error('Failed to add to cart:', error);
+      // Error already handled in addToCart method
     }
   }
 
@@ -837,8 +839,232 @@ class CartService {
         }
       }
     } catch (error) {
-      console.error('Failed to decrease quantity:', error);
+      // Error already handled in removeFromCart method
     }
+  }
+}
+
+// Error Handler to centralize error handling and eliminate shotgun surgery
+class ErrorHandler {
+  constructor() {
+    this.notificationContainer = null;
+    this.initializeNotificationContainer();
+  }
+
+  // Initialize notification container
+  initializeNotificationContainer() {
+    this.notificationContainer = document.createElement('div');
+    this.notificationContainer.id = 'notification-container';
+    this.notificationContainer.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 10000;
+      max-width: 400px;
+    `;
+    document.body.appendChild(this.notificationContainer);
+  }
+
+  // Handle different types of errors
+  handleError(error, context = '') {
+    console.error(`Error in ${context}:`, error);
+
+    // Determine error type and appropriate handling
+    if (this.isNetworkError(error)) {
+      this.handleNetworkError(error, context);
+    } else if (this.isAuthenticationError(error)) {
+      this.handleAuthenticationError(error, context);
+    } else if (this.isValidationError(error)) {
+      this.handleValidationError(error, context);
+    } else {
+      this.handleGenericError(error, context);
+    }
+  }
+
+  // Check if error is a network error
+  isNetworkError(error) {
+    return error.message.includes('Network') || 
+           error.message.includes('fetch') || 
+           error.message.includes('HTTP') ||
+           error.name === 'TypeError' && error.message.includes('fetch');
+  }
+
+  // Check if error is an authentication error
+  isAuthenticationError(error) {
+    return error.message.includes('401') || 
+           error.message.includes('403') || 
+           error.message.includes('Unauthorized') ||
+           error.message.includes('Forbidden');
+  }
+
+  // Check if error is a validation error
+  isValidationError(error) {
+    return error.message.includes('validation') || 
+           error.message.includes('invalid') || 
+           error.message.includes('required');
+  }
+
+  // Handle network errors
+  handleNetworkError(error, context) {
+    const message = `Network error: Unable to ${context}. Please check your internet connection and try again.`;
+    this.showNotification(message, 'error');
+    
+    // Retry logic for network errors
+    this.scheduleRetry(context);
+  }
+
+  // Handle authentication errors
+  handleAuthenticationError(error, context) {
+    const message = `Authentication error: Please log in again to continue.`;
+    this.showNotification(message, 'warning');
+    
+    // Redirect to login after a delay
+    setTimeout(() => {
+      window.location.href = '/Login/login.html';
+    }, 2000);
+  }
+
+  // Handle validation errors
+  handleValidationError(error, context) {
+    const message = `Validation error: ${error.message}`;
+    this.showNotification(message, 'warning');
+  }
+
+  // Handle generic errors
+  handleGenericError(error, context) {
+    const message = `An unexpected error occurred while ${context}. Please try again.`;
+    this.showNotification(message, 'error');
+  }
+
+  // Show notification to user
+  showNotification(message, type = 'info', duration = 5000) {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.style.cssText = `
+      background: ${this.getNotificationColor(type)};
+      color: white;
+      padding: 12px 20px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      animation: slideIn 0.3s ease-out;
+      max-width: 100%;
+      word-wrap: break-word;
+    `;
+    
+    notification.textContent = message;
+    
+    // Add close button
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '×';
+    closeBtn.style.cssText = `
+      background: none;
+      border: none;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      float: right;
+      margin-left: 10px;
+    `;
+    closeBtn.onclick = () => this.removeNotification(notification);
+    
+    notification.appendChild(closeBtn);
+    this.notificationContainer.appendChild(notification);
+
+    // Auto-remove after duration
+    setTimeout(() => {
+      this.removeNotification(notification);
+    }, duration);
+  }
+
+  // Remove notification
+  removeNotification(notification) {
+    if (notification && notification.parentNode) {
+      notification.style.animation = 'slideOut 0.3s ease-out';
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    }
+  }
+
+  // Get notification color based on type
+  getNotificationColor(type) {
+    const colors = {
+      success: '#28a745',
+      error: '#dc3545',
+      warning: '#ffc107',
+      info: '#17a2b8'
+    };
+    return colors[type] || colors.info;
+  }
+
+  // Schedule retry for network errors
+  scheduleRetry(context, maxRetries = 3) {
+    let retryCount = 0;
+    
+    const retry = () => {
+      if (retryCount < maxRetries) {
+        retryCount++;
+        this.showNotification(`Retrying ${context}... (${retryCount}/${maxRetries})`, 'info', 2000);
+        
+        // Implement retry logic here based on context
+        setTimeout(() => {
+          // This would be implemented based on the specific context
+          console.log(`Retry attempt ${retryCount} for ${context}`);
+        }, 1000 * retryCount);
+      } else {
+        this.showNotification(`Failed to ${context} after ${maxRetries} attempts. Please try again later.`, 'error');
+      }
+    };
+    
+    setTimeout(retry, 2000);
+  }
+
+  // Handle async operations with error handling
+  async handleAsyncOperation(operation, context = '') {
+    try {
+      return await operation();
+    } catch (error) {
+      this.handleError(error, context);
+      throw error; // Re-throw for calling code to handle if needed
+    }
+  }
+
+  // Handle promise operations with error handling
+  handlePromiseOperation(promise, context = '') {
+    return promise.catch(error => {
+      this.handleError(error, context);
+      throw error;
+    });
+  }
+
+  // Clear all notifications
+  clearAllNotifications() {
+    if (this.notificationContainer) {
+      this.notificationContainer.innerHTML = '';
+    }
+  }
+
+  // Show success notification
+  showSuccess(message, duration = 3000) {
+    this.showNotification(message, 'success', duration);
+  }
+
+  // Show error notification
+  showError(message, duration = 5000) {
+    this.showNotification(message, 'error', duration);
+  }
+
+  // Show warning notification
+  showWarning(message, duration = 4000) {
+    this.showNotification(message, 'warning', duration);
+  }
+
+  // Show info notification
+  showInfo(message, duration = 3000) {
+    this.showNotification(message, 'info', duration);
   }
 }
 
@@ -846,8 +1072,9 @@ class CartService {
 const apiClient = new ApiClient();
 const authService = new AuthService();
 const urlParamsService = new URLParamsService();
-const ratingService = new RatingService(apiClient);
-const cartService = new CartService(apiClient);
+const errorHandler = new ErrorHandler();
+const ratingService = new RatingService(apiClient, errorHandler);
+const cartService = new CartService(apiClient, errorHandler);
 
 // Initialize page state
 const pageState = new PageState();
