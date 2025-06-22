@@ -1,8 +1,154 @@
-let page = 1;
-let totalPages = pagination.count;
-const defaultSortingOption = 'NameAsc';
-let isVegetarian = false;
+// Page state class to encapsulate pagination and filtering state
+class PageState {
+  constructor() {
+    this._page = 1;
+    this._totalPages = 0;
+    this._defaultSortingOption = 'NameAsc';
+    this._isVegetarian = false;
+    this._selectedCategories = [];
+    this._currentSorting = null;
+  }
 
+  // Get current page
+  getPage() {
+    return this._page;
+  }
+
+  // Set current page
+  setPage(pageNumber) {
+    if (pageNumber < 1) {
+      throw new Error('Page number must be greater than 0');
+    }
+    this._page = pageNumber;
+  }
+
+  // Get total pages
+  getTotalPages() {
+    return this._totalPages;
+  }
+
+  // Set total pages
+  setTotalPages(total) {
+    if (total < 0) {
+      throw new Error('Total pages cannot be negative');
+    }
+    this._totalPages = total;
+  }
+
+  // Get default sorting option
+  getDefaultSortingOption() {
+    return this._defaultSortingOption;
+  }
+
+  // Check if vegetarian filter is active
+  isVegetarian() {
+    return this._isVegetarian;
+  }
+
+  // Set vegetarian filter
+  setVegetarian(isVegetarian) {
+    this._isVegetarian = Boolean(isVegetarian);
+  }
+
+  // Get selected categories
+  getSelectedCategories() {
+    return [...this._selectedCategories]; // Return copy to prevent external modification
+  }
+
+  // Set selected categories
+  setSelectedCategories(categories) {
+    this._selectedCategories = Array.isArray(categories) ? [...categories] : [];
+  }
+
+  // Add category to selection
+  addCategory(category) {
+    if (!this._selectedCategories.includes(category)) {
+      this._selectedCategories.push(category);
+    }
+  }
+
+  // Remove category from selection
+  removeCategory(category) {
+    this._selectedCategories = this._selectedCategories.filter(cat => cat !== category);
+  }
+
+  // Clear all selected categories
+  clearCategories() {
+    this._selectedCategories = [];
+  }
+
+  // Get current sorting
+  getCurrentSorting() {
+    return this._currentSorting;
+  }
+
+  // Set current sorting
+  setCurrentSorting(sorting) {
+    this._currentSorting = sorting;
+  }
+
+  // Reset to first page
+  resetToFirstPage() {
+    this._page = 1;
+  }
+
+  // Check if on first page
+  isFirstPage() {
+    return this._page === 1;
+  }
+
+  // Check if on last page
+  isLastPage() {
+    return this._page >= this._totalPages;
+  }
+
+  // Go to next page
+  nextPage() {
+    if (!this.isLastPage()) {
+      this._page++;
+    }
+  }
+
+  // Go to previous page
+  previousPage() {
+    if (!this.isFirstPage()) {
+      this._page--;
+    }
+  }
+
+  // Get state summary for debugging
+  getStateSummary() {
+    return {
+      page: this._page,
+      totalPages: this._totalPages,
+      isVegetarian: this._isVegetarian,
+      selectedCategories: this.getSelectedCategories(),
+      currentSorting: this._currentSorting
+    };
+  }
+
+  // Update state from URL parameters
+  updateFromURLParams(urlParams) {
+    const pageNumber = parseInt(urlParams.get('page'));
+    if (!isNaN(pageNumber)) {
+      this.setPage(pageNumber);
+    }
+
+    const isVegetarianParam = urlParams.get('vegetarian');
+    if (isVegetarianParam !== null) {
+      this.setVegetarian(isVegetarianParam === 'true');
+    }
+
+    const categories = urlParams.getAll('categories');
+    this.setSelectedCategories(categories);
+
+    const sortingMethod = urlParams.get('sorting');
+    this.setCurrentSorting(sortingMethod);
+  }
+}
+
+// Initialize page state
+const pageState = new PageState();
 
 function parseURLParams(url) {
     const params = new URLSearchParams(url.search);
@@ -12,7 +158,6 @@ function parseURLParams(url) {
     }
     return queryParams;
 }
-
 
 function parseCategoryFilterFromURLAndUpdateUI() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -62,7 +207,7 @@ function parsePageNumberFromURLAndUpdatePagination() {
     const urlParams = new URLSearchParams(window.location.search);
     const pageNumber = parseInt(urlParams.get('page'));
     if (!isNaN(pageNumber)) {
-        page = pageNumber;
+        pageState.setPage(pageNumber);
     }
 }
 
@@ -70,11 +215,10 @@ function parseVegetarianFilterFromURLAndUpdateUI() {
     const urlParams = new URLSearchParams(window.location.search);
     const isVegetarianParam = urlParams.get('vegetarian');
     if (isVegetarianParam !== null) {
-        isVegetarian = isVegetarianParam === 'true';
+        pageState.setVegetarian(isVegetarianParam === 'true');
     }
-    document.getElementById('is-vegetarian').checked = isVegetarian;
+    document.getElementById('is-vegetarian').checked = pageState.isVegetarian();
 }
-
 
 window.addEventListener('DOMContentLoaded', () => {
     parseVegetarianFilterFromURLAndUpdateUI();
@@ -84,36 +228,36 @@ window.addEventListener('DOMContentLoaded', () => {
     
 
     document.querySelector('.filter-btn').addEventListener('click', function() {
-        isVegetarian = document.getElementById('is-vegetarian').checked;
+        pageState.setVegetarian(document.getElementById('is-vegetarian').checked);
         document.getElementById('is-vegetarian').addEventListener('change', function() {
-            isVegetarian = this.checked;
+            pageState.setVegetarian(this.checked);
         });
     
         const selectedCategories = Array.from(document.querySelectorAll('.list-items .item.checked'))
             .map(item => item.querySelector('.item-text').textContent);
-        const isVegetarianSoup = isVegetarian && selectedCategories.length === 1 && selectedCategories[0] === 'Soup';
+        pageState.setSelectedCategories(selectedCategories);
+        
+        const isVegetarianSoup = pageState.isVegetarian() && selectedCategories.length === 1 && selectedCategories[0] === 'Soup';
     
         if (isVegetarianSoup) {
             alert('Sorry, there are no vegetarian soups available.');
         } else {
-            page = 1; 
-            fetchData(page);
+            pageState.resetToFirstPage(); 
+            fetchData(pageState.getPage());
         }
     });
 
-    fetchData(page);
+    fetchData(pageState.getPage());
 });
-
 
 function fetchData(pageNumber) {
     const sortingOption = document.querySelector('.select-dropdown input[type="radio"]:checked');
     
     const params = new URLSearchParams();
-    if (isVegetarian) params.set('vegetarian', isVegetarian);
+    if (pageState.isVegetarian()) params.set('vegetarian', pageState.isVegetarian());
     params.set('page', pageNumber);
     
-    const selectedCategories = Array.from(document.querySelectorAll('.list-items .item.checked'))
-        .map(item => item.querySelector('.item-text').textContent);
+    const selectedCategories = pageState.getSelectedCategories();
     selectedCategories.forEach(category => {
         params.append('categories', category);
     });
@@ -137,7 +281,7 @@ function fetchData(pageNumber) {
             return response.json();
         })
         .then(data => {
-            totalPages = data.pagination.count;
+            pageState.setTotalPages(data.pagination.count);
             let cards = document.getElementById("cards");
             cards.innerHTML = '';
 
@@ -480,22 +624,24 @@ function updatePagination() {
 
     const queryParams = parseURLParams(window.location);
 
-    page = parseInt(queryParams.page) || 1;
+    pageState.setPage(parseInt(queryParams.page) || 1);
+    const currentPage = pageState.getPage();
+    const totalPages = pageState.getTotalPages();
 
     let prevButton = document.createElement('a');
     prevButton.href = "#";
     prevButton.textContent = '«';
-    if (page > 1) {
+    if (currentPage > 1) {
         prevButton.addEventListener('click', function(event) {
             event.preventDefault();
-            page--;
-            fetchData(page);
+            pageState.previousPage();
+            fetchData(pageState.getPage());
             window.scrollTo(0, 0);
         });
         pagination.appendChild(prevButton);
     }
 
-    let startPage = Math.max(1, page - 1);
+    let startPage = Math.max(1, currentPage - 1);
     let endPage = Math.min(totalPages, startPage + 2);
     if (endPage === totalPages) {
         startPage = Math.max(1, endPage - 2);
@@ -505,13 +651,13 @@ function updatePagination() {
         let link = document.createElement('a');
         link.href = `#${i}`;
         link.textContent = i;
-        if (i === page) {
+        if (i === currentPage) {
             link.classList.add('active');
         }
         link.addEventListener('click', function(event) {
             event.preventDefault();
-            page = i;
-            fetchData(page);
+            pageState.setPage(i);
+            fetchData(pageState.getPage());
             window.scrollTo(0, 0);
         });
         pagination.appendChild(link);
@@ -520,11 +666,11 @@ function updatePagination() {
     let nextButton = document.createElement('a');
     nextButton.href = "#";
     nextButton.textContent = '»';
-    if (page < totalPages) {
+    if (currentPage < totalPages) {
         nextButton.addEventListener('click', function(event) {
             event.preventDefault();
-            page++;
-            fetchData(page);
+            pageState.nextPage();
+            fetchData(pageState.getPage());
             window.scrollTo(0, 0);
         });
         pagination.appendChild(nextButton);
@@ -664,8 +810,3 @@ document.getElementById('logout-link').addEventListener('click', function(event)
         console.error('Error during logout:', error);
     });
 });
-
-
-
-  
-  
