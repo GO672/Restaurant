@@ -1155,41 +1155,549 @@ class RatingUIService {
   }
 }
 
+// Enhanced DOM Helper Service to eliminate message chains
+class DOMHelperService {
+  constructor() {
+    this.dropdownSelectors = {
+      profile: '.select-dropdown1',
+      dropdownContent: '.dropdown-content',
+      signUpLink: 'header nav ul li:nth-child(4)',
+      loginLink: 'header nav ul li:nth-child(5)',
+      logoutLink: '#logout-link'
+    };
+    
+    this.commonSelectors = {
+      cards: '#cards',
+      filterBtn: '.filter-btn',
+      vegetarianCheckbox: '#is-vegetarian',
+      checkedItems: '.list-items .item.checked',
+      itemText: '.item-text',
+      buttonText: '.btn-text',
+      sortingOption: '.select-dropdown input[type="radio"]:checked',
+      selectBtn: '.select-btn',
+      items: '.item',
+      customSelect: '.custom-select',
+      selectButton: '.select-button',
+      selectedValue: '.selected-value',
+      optionsList: '.select-dropdown li'
+    };
+  }
+
+  // Get element with error handling
+  getElement(selector) {
+    const element = document.querySelector(selector);
+    if (!element) {
+      console.warn(`Element not found: ${selector}`);
+    }
+    return element;
+  }
+
+  // Get multiple elements
+  getElements(selector) {
+    return document.querySelectorAll(selector);
+  }
+
+  // Get element by ID (eliminates message chain)
+  getById(id) {
+    return this.getElement(`#${id}`);
+  }
+
+  // Get element by class (eliminates message chain)
+  getByClass(className) {
+    return this.getElement(`.${className}`);
+  }
+
+  // Get elements by class (eliminates message chain)
+  getAllByClass(className) {
+    return this.getElements(`.${className}`);
+  }
+
+  // Get element by attribute (eliminates message chain)
+  getByAttribute(attribute, value) {
+    return this.getElement(`[${attribute}="${value}"]`);
+  }
+
+  // Get parent element (eliminates message chain)
+  getParent(element) {
+    return element ? element.parentNode : null;
+  }
+
+  // Get child elements (eliminates message chain)
+  getChildren(element) {
+    return element ? Array.from(element.children) : [];
+  }
+
+  // Get first child (eliminates message chain)
+  getFirstChild(element) {
+    return element ? element.firstElementChild : null;
+  }
+
+  // Get last child (eliminates message chain)
+  getLastChild(element) {
+    return element ? element.lastElementChild : null;
+  }
+
+  // Get next sibling (eliminates message chain)
+  getNextSibling(element) {
+    return element ? element.nextElementSibling : null;
+  }
+
+  // Get previous sibling (eliminates message chain)
+  getPreviousSibling(element) {
+    return element ? element.previousElementSibling : null;
+  }
+
+  // Find element within context (eliminates message chain)
+  findInContext(context, selector) {
+    return context ? context.querySelector(selector) : null;
+  }
+
+  // Find all elements within context (eliminates message chain)
+  findAllInContext(context, selector) {
+    return context ? context.querySelectorAll(selector) : [];
+  }
+
+  // Check if element exists (eliminates message chain)
+  exists(selector) {
+    return !!this.getElement(selector);
+  }
+
+  // Check if element has class (eliminates message chain)
+  hasClass(element, className) {
+    return element ? element.classList.contains(className) : false;
+  }
+
+  // Add class to element (eliminates message chain)
+  addClass(element, className) {
+    if (element) {
+      element.classList.add(className);
+    }
+  }
+
+  // Remove class from element (eliminates message chain)
+  removeClass(element, className) {
+    if (element) {
+      element.classList.remove(className);
+    }
+  }
+
+  // Toggle class on element (eliminates message chain)
+  toggleClass(element, className) {
+    if (element) {
+      element.classList.toggle(className);
+    }
+  }
+
+  // Set element attribute (eliminates message chain)
+  setAttribute(element, attribute, value) {
+    if (element) {
+      element.setAttribute(attribute, value);
+    }
+  }
+
+  // Get element attribute (eliminates message chain)
+  getAttribute(element, attribute) {
+    return element ? element.getAttribute(attribute) : null;
+  }
+
+  // Remove element attribute (eliminates message chain)
+  removeAttribute(element, attribute) {
+    if (element) {
+      element.removeAttribute(attribute);
+    }
+  }
+
+  // Set element style property (eliminates message chain)
+  setStyle(element, property, value) {
+    if (element) {
+      element.style[property] = value;
+    }
+  }
+
+  // Get element style property (eliminates message chain)
+  getStyle(element, property) {
+    return element ? element.style[property] : null;
+  }
+
+  // Set element CSS text (eliminates message chain)
+  setCssText(element, cssText) {
+    if (element) {
+      element.style.cssText = cssText;
+    }
+  }
+
+  // Toggle dropdown visibility
+  toggleDropdown(dropdownElement) {
+    if (!dropdownElement) return;
+    
+    const content = this.getDropdownContent(dropdownElement);
+    if (content) {
+      const isVisible = this.getStyle(content, 'display') === 'block';
+      this.setDropdownVisibility(content, !isVisible);
+    }
+  }
+
+  // Get dropdown content element
+  getDropdownContent(dropdownElement) {
+    return this.findInContext(dropdownElement, this.dropdownSelectors.dropdownContent);
+  }
+
+  // Set dropdown visibility
+  setDropdownVisibility(contentElement, isVisible) {
+    this.setStyle(contentElement, 'display', isVisible ? 'block' : 'none');
+  }
+
+  // Hide all dropdowns
+  hideAllDropdowns() {
+    const dropdowns = this.getElements(this.dropdownSelectors.profile);
+    dropdowns.forEach(dropdown => {
+      const content = this.getDropdownContent(dropdown);
+      this.setDropdownVisibility(content, false);
+    });
+  }
+
+  // Setup dropdown event listeners
+  setupDropdownListeners() {
+    const profileDropdowns = this.getElements(this.dropdownSelectors.profile);
+    
+    profileDropdowns.forEach(dropdown => {
+      this.addEventListener(dropdown, 'click', (event) => {
+        event.stopPropagation();
+        this.toggleDropdown(dropdown);
+      });
+    });
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (event) => {
+      const clickedDropdown = event.target.closest(this.dropdownSelectors.profile);
+      if (!clickedDropdown) {
+        this.hideAllDropdowns();
+      }
+    });
+  }
+
+  // Update authentication UI
+  updateAuthUI(isAuthenticated) {
+    const profileDropdown = this.getElement(this.dropdownSelectors.profile);
+    const signUpLink = this.getElement(this.dropdownSelectors.signUpLink);
+    const loginLink = this.getElement(this.dropdownSelectors.loginLink);
+
+    if (isAuthenticated) {
+      this.showElement(profileDropdown);
+      this.hideElement(signUpLink);
+      this.hideElement(loginLink);
+    } else {
+      this.hideElement(profileDropdown);
+      this.showElement(signUpLink);
+      this.showElement(loginLink);
+    }
+  }
+
+  // Show element
+  showElement(element) {
+    this.setStyle(element, 'display', 'block');
+  }
+
+  // Hide element
+  hideElement(element) {
+    this.setStyle(element, 'display', 'none');
+  }
+
+  // Toggle element visibility
+  toggleElement(element) {
+    if (element) {
+      const isVisible = this.getStyle(element, 'display') !== 'none';
+      this.setStyle(element, 'display', isVisible ? 'none' : 'block');
+    }
+  }
+
+  // Set element text content
+  setTextContent(element, text) {
+    if (element) {
+      element.textContent = text;
+    }
+  }
+
+  // Get element text content
+  getTextContent(element) {
+    return element ? element.textContent : '';
+  }
+
+  // Set element inner HTML
+  setInnerHTML(element, html) {
+    if (element) {
+      element.innerHTML = html;
+    }
+  }
+
+  // Get element inner HTML
+  getInnerHTML(element) {
+    return element ? element.innerHTML : '';
+  }
+
+  // Add event listener with error handling
+  addEventListener(element, event, handler) {
+    if (element) {
+      element.addEventListener(event, handler);
+    } else {
+      console.warn(`Cannot add event listener to null element for event: ${event}`);
+    }
+  }
+
+  // Remove event listener
+  removeEventListener(element, event, handler) {
+    if (element) {
+      element.removeEventListener(event, handler);
+    }
+  }
+
+  // Create element with attributes
+  createElement(tagName, attributes = {}) {
+    const element = document.createElement(tagName);
+    Object.entries(attributes).forEach(([key, value]) => {
+      if (key === 'className') {
+        element.className = value;
+      } else if (key === 'textContent') {
+        element.textContent = value;
+      } else if (key === 'innerHTML') {
+        element.innerHTML = value;
+      } else {
+        element.setAttribute(key, value);
+      }
+    });
+    return element;
+  }
+
+  // Append child with error handling
+  appendChild(parent, child) {
+    if (parent && child) {
+      parent.appendChild(child);
+    }
+  }
+
+  // Remove child with error handling
+  removeChild(parent, child) {
+    if (parent && child) {
+      parent.removeChild(child);
+    }
+  }
+
+  // Remove element from DOM
+  removeElement(element) {
+    if (element && element.parentNode) {
+      element.parentNode.removeChild(element);
+    }
+  }
+
+  // Clear element content
+  clearElement(element) {
+    if (element) {
+      element.innerHTML = '';
+    }
+  }
+
+  // Check if element is visible
+  isVisible(element) {
+    return element && this.getStyle(element, 'display') !== 'none';
+  }
+
+  // Check if element is hidden
+  isHidden(element) {
+    return !this.isVisible(element);
+  }
+
+  // Get computed style
+  getComputedStyle(element, property) {
+    return element ? window.getComputedStyle(element)[property] : null;
+  }
+
+  // Get element dimensions
+  getDimensions(element) {
+    if (!element) return null;
+    
+    const rect = element.getBoundingClientRect();
+    return {
+      width: rect.width,
+      height: rect.height,
+      top: rect.top,
+      left: rect.left,
+      bottom: rect.bottom,
+      right: rect.right
+    };
+  }
+
+  // Check if element is in viewport
+  isInViewport(element) {
+    if (!element) return false;
+    
+    const rect = element.getBoundingClientRect();
+    return (
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    );
+  }
+
+  // Scroll element into view
+  scrollIntoView(element, options = {}) {
+    if (element) {
+      element.scrollIntoView(options);
+    }
+  }
+
+  // Focus element
+  focusElement(element) {
+    if (element) {
+      element.focus();
+    }
+  }
+
+  // Blur element
+  blurElement(element) {
+    if (element) {
+      element.blur();
+    }
+  }
+
+  // Get form data
+  getFormData(formElement) {
+    if (!formElement) return {};
+    
+    const formData = new FormData(formElement);
+    const data = {};
+    
+    for (let [key, value] of formData.entries()) {
+      data[key] = value;
+    }
+    
+    return data;
+  }
+
+  // Set form data
+  setFormData(formElement, data) {
+    if (!formElement) return;
+    
+    Object.entries(data).forEach(([key, value]) => {
+      const input = this.findInContext(formElement, `[name="${key}"]`);
+      if (input) {
+        if (input.type === 'checkbox') {
+          input.checked = Boolean(value);
+        } else if (input.type === 'radio') {
+          if (input.value === value) {
+            input.checked = true;
+          }
+        } else {
+          input.value = value;
+        }
+      }
+    });
+  }
+
+  // Get checked radio button value
+  getCheckedRadioValue(name) {
+    const checkedRadio = this.getElement(`input[name="${name}"]:checked`);
+    return checkedRadio ? checkedRadio.value : null;
+  }
+
+  // Get checkbox value
+  getCheckboxValue(selector) {
+    const checkbox = this.getElement(selector);
+    return checkbox ? checkbox.checked : false;
+  }
+
+  // Set checkbox value
+  setCheckboxValue(selector, checked) {
+    const checkbox = this.getElement(selector);
+    if (checkbox) {
+      checkbox.checked = Boolean(checked);
+    }
+  }
+
+  // Get select value
+  getSelectValue(selector) {
+    const select = this.getElement(selector);
+    return select ? select.value : null;
+  }
+
+  // Set select value
+  setSelectValue(selector, value) {
+    const select = this.getElement(selector);
+    if (select) {
+      select.value = value;
+    }
+  }
+
+  // Get input value
+  getInputValue(selector) {
+    const input = this.getElement(selector);
+    return input ? input.value : '';
+  }
+
+  // Set input value
+  setInputValue(selector, value) {
+    const input = this.getElement(selector);
+    if (input) {
+      input.value = value;
+    }
+  }
+}
+
 // Initialize services
 const apiClient = new ApiClient();
 const authService = new AuthService();
+const pageState = new PageState();
 const urlParamsService = new URLParamsService();
+const paginationService = new PaginationService(pageState, urlParamsService);
 const errorHandler = new ErrorHandler();
 const ratingService = new RatingService(apiClient, errorHandler);
 const ratingUIService = new RatingUIService(ratingService, errorHandler);
 const cartService = new CartService(apiClient, errorHandler);
+const domHelper = new DOMHelperService();
 
-// Initialize page state
-const pageState = new PageState();
+// Initialize DOM helpers
+domHelper.setupDropdownListeners();
 
-// Initialize pagination service
-const paginationService = new PaginationService(pageState, urlParamsService);
+// Update authentication UI on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const token = localStorage.getItem('token');
+  domHelper.updateAuthUI(!!token);
+});
+
+// Setup logout functionality
+domHelper.addEventListener(domHelper.getElement('#logout-link'), 'click', function(event) {
+  event.preventDefault();
+  authService.logout().then(() => {
+    window.location.href = '/Login/login.html';
+  }).catch(error => {
+    console.error('Error during logout:', error);
+  });
+});
 
 // DOM Helper Functions to eliminate message chains
 function getCheckedItems() {
-  return document.querySelectorAll('.list-items .item.checked');
+  return domHelper.getElements(domHelper.commonSelectors.checkedItems);
 }
 
 function getSelectedCategories() {
-  return Array.from(getCheckedItems()).map(item => item.querySelector('.item-text').textContent);
+  const checkedItems = getCheckedItems();
+  return checkedItems.map(item => {
+    const itemText = domHelper.findInContext(item, domHelper.commonSelectors.itemText);
+    return domHelper.getTextContent(itemText);
+  });
 }
 
 function setButtonText(count) {
-  const btnText = document.querySelector('.btn-text');
-  btnText.innerHTML = count > 0 ? `${count} selected` : 'Select';
+  const btnText = domHelper.getElement(domHelper.commonSelectors.buttonText);
+  domHelper.setInnerHTML(btnText, count > 0 ? `${count} selected` : 'Select');
 }
 
 function getSortingOption() {
-  return document.querySelector('.select-dropdown input[type="radio"]:checked');
+  return domHelper.getElement(domHelper.commonSelectors.sortingOption);
 }
 
 function getCardsContainer() {
-  return document.getElementById('cards');
+  return domHelper.getById('cards');
 }
 
 function updateSelectedCategoriesCount() {
@@ -1202,10 +1710,15 @@ window.addEventListener('DOMContentLoaded', () => {
     urlParamsService.updatePageStateFromURL();
     urlParamsService.updateUIFromURL();
     
-    document.querySelector('.filter-btn').addEventListener('click', function() {
-        pageState.setVegetarian(document.getElementById('is-vegetarian').checked);
-        document.getElementById('is-vegetarian').addEventListener('change', function() {
-            pageState.setVegetarian(this.checked);
+    const filterBtn = domHelper.getElement(domHelper.commonSelectors.filterBtn);
+    const vegetarianCheckbox = domHelper.getById('is-vegetarian');
+    
+    domHelper.addEventListener(filterBtn, 'click', function() {
+        const isVegetarian = domHelper.getCheckboxValue('#is-vegetarian');
+        pageState.setVegetarian(isVegetarian);
+        
+        domHelper.addEventListener(vegetarianCheckbox, 'change', function() {
+            pageState.setVegetarian(domHelper.getCheckboxValue('#is-vegetarian'));
         });
     
         const selectedCategories = getSelectedCategories();
@@ -1233,7 +1746,7 @@ function fetchData(pageNumber) {
             const data = await apiClient.get('/dish', params);
             paginationService.updateTotalPages(data.pagination.count);
             let cards = getCardsContainer();
-            cards.innerHTML = '';
+            domHelper.clearElement(cards);
 
             const sortedDishes = data.dishes;
 
@@ -1244,34 +1757,27 @@ function fetchData(pageNumber) {
             
 
             filteredDishes.forEach((dish) => {
-                const card = document.createElement('div');
-                card.classList.add("card");
-                const image = document.createElement('img');
-                image.src = dish.image;
-                const container = document.createElement('div');
-                container.classList.add('container');
-                const name = document.createElement('div');
-                name.classList.add('name');
-                name.textContent = dish.name;
-                const category = document.createElement('div');
-                category.classList.add('category');
-                category.textContent = `Category: ${dish.category}`;
+                const card = domHelper.createElement('div', { className: 'card' });
+                const image = domHelper.createElement('img', { src: dish.image });
+                const container = domHelper.createElement('div', { className: 'container' });
+                const name = domHelper.createElement('div', { className: 'name', textContent: dish.name });
+                const category = domHelper.createElement('div', { className: 'category', textContent: `Category: ${dish.category}` });
 
                 const ratingFieldset = ratingUIService.setupRatingUI(dish, card);
 
                 // Create cart UI using the service
                 const { addToCartBtn, cartSection } = cartService.createCartUI(dish.id, card);
 
-                container.appendChild(name);
-                container.appendChild(category);
-                container.appendChild(ratingFieldset);
-                container.appendChild(addToCartBtn);
-                container.appendChild(cartSection);
+                domHelper.appendChild(container, name);
+                domHelper.appendChild(container, category);
+                domHelper.appendChild(container, ratingFieldset);
+                domHelper.appendChild(container, addToCartBtn);
+                domHelper.appendChild(container, cartSection);
 
-                card.appendChild(image);
-                card.appendChild(container);
+                domHelper.appendChild(card, image);
+                domHelper.appendChild(card, container);
 
-                cards.appendChild(card);
+                domHelper.appendChild(cards, card);
             });
 
             paginationService.update();
@@ -1361,63 +1867,7 @@ document.addEventListener("click", function (e) {
     }
 });
 
-// profile icon dropdown
-document.querySelector('.select-dropdown1').addEventListener('click', function() {
-    const dropdownContent = this.querySelector('.dropdown-content');
-    dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
-});
 
-// Close dropdown content when clicking outside the dropdown
-document.addEventListener('click', function(event) {
-    const dropdowns = document.querySelectorAll('.select-dropdown1');
-    dropdowns.forEach(function(dropdown) {
-        if (!dropdown.contains(event.target)) {
-            dropdown.querySelector('.dropdown-content').style.display = 'none';
-        }
-    });
-});
 
-  document.addEventListener('DOMContentLoaded', function() {
-    const token = localStorage.getItem('token');
-    const profileDropdown = document.querySelector('.select-dropdown1');
-    const signUpLink = document.querySelector('header nav ul li:nth-child(4)');
-    const loginLink = document.querySelector('header nav ul li:nth-child(5)');
-
-    if (token) {
-        // User is logged in
-        profileDropdown.style.display = 'block';
-        signUpLink.style.display = 'none';
-        loginLink.style.display = 'none';
-    } else {
-        // User is not logged in
-        profileDropdown.style.display = 'none';
-        signUpLink.style.display = 'block';
-        loginLink.style.display = 'block';
-    }
-});
-
-document.getElementById('logout-link').addEventListener('click', function(event) {
-    event.preventDefault(); // Prevent default action of the link
-
-    // Retrieve the token from localStorage
-    const token = localStorage.getItem('token');
-
-    fetch('https://food-delivery.int.kreosoft.space/api/account/logout', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-    })
-    .then(response => {
-        if (response.ok) {  
-            localStorage.removeItem('token');
-            window.location.href = '/Login/login.html';
-        } else {
-            console.error('Logout failed');
-        }
-    })
-    .catch(error => {
-        console.error('Error during logout:', error);
-    });
-});
+  
+  
