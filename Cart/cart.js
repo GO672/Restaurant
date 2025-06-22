@@ -306,11 +306,85 @@ class ApiClient {
   }
 }
 
-// Cart service class to encapsulate all cart operations
-class CartService {
+// Cart State Manager to eliminate inappropriate intimacy
+class CartStateManager {
   constructor() {
-    this.apiClient = new ApiClient('https://food-delivery.int.kreosoft.space/api/basket');
     this.cartState = new CartState();
+    this.observers = [];
+  }
+
+  // Register observer for state changes
+  addObserver(observer) {
+    this.observers.push(observer);
+  }
+
+  // Notify all observers of state change
+  notifyObservers() {
+    this.observers.forEach(observer => {
+      if (typeof observer.onCartStateChanged === 'function') {
+        observer.onCartStateChanged(this.getCartState());
+      }
+    });
+  }
+
+  // Update cart state from server data
+  updateFromServerData(serverData) {
+    this.cartState.updateFromServerData(serverData);
+    this.notifyObservers();
+  }
+
+  // Get current cart state (read-only)
+  getCartState() {
+    return {
+      items: this.cartState.getItems(),
+      itemCount: this.cartState.getItemCount(),
+      totalPrice: this.cartState.getTotalPrice(),
+      isEmpty: this.cartState.isEmpty()
+    };
+  }
+
+  // Check if cart is empty
+  isEmpty() {
+    return this.cartState.isEmpty();
+  }
+
+  // Get cart items
+  getItems() {
+    return this.cartState.getItems();
+  }
+
+  // Get item count
+  getItemCount() {
+    return this.cartState.getItemCount();
+  }
+
+  // Get total price
+  getTotalPrice() {
+    return this.cartState.getTotalPrice();
+  }
+
+  // Get item quantity for specific item
+  getItemQuantity(itemId) {
+    return this.cartState.getItemQuantity(itemId);
+  }
+
+  // Get cart summary
+  getSummary() {
+    return this.cartState.getSummary();
+  }
+
+  // Clear cart state
+  clear() {
+    this.cartState.clear();
+    this.notifyObservers();
+  }
+}
+
+// Cart Service to handle API operations
+class CartService {
+  constructor(cartStateManager) {
+    this.apiClient = new ApiClient('https://food-delivery.int.kreosoft.space/api/basket');
+    this.cartStateManager = cartStateManager;
     this.debounceTimer = null;
   }
 
@@ -321,10 +395,7 @@ class CartService {
       console.log('Item added to cart successfully');
       
       // Debounced cart refresh
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = setTimeout(async () => {
-        await this.getCartData();
-      }, Config.DEBOUNCE_DELAY_MS);
+      this.scheduleCartRefresh();
     } catch (error) {
       console.error('Error adding item to cart:', error);
       throw error;
@@ -354,10 +425,7 @@ class CartService {
       console.log(`Quantity ${increase ? 'increased' : 'decreased'} successfully`);
       
       // Debounced cart refresh
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = setTimeout(async () => {
-        await this.getCartData();
-      }, Config.DEBOUNCE_DELAY_MS);
+      this.scheduleCartRefresh();
     } catch (error) {
       console.error('Error updating item quantity:', error);
       throw error;
@@ -370,130 +438,40 @@ class CartService {
       const data = await this.apiClient.get('');
       console.log('Cart Data:', data);
       
-      // Update cart state
-      this.cartState.updateFromServerData(data);
-      
-      // Display cart items
-      cartManager.displayCartItems(this.cartState.getItems());
+      // Update cart state through state manager
+      this.cartStateManager.updateFromServerData(data);
     } catch (error) {
       console.error('Error fetching cart data:', error);
       throw error;
     }
   }
 
+  // Schedule cart refresh with debouncing
+  scheduleCartRefresh() {
+    clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(async () => {
+      await this.getCartData();
+    }, Config.DEBOUNCE_DELAY_MS);
+  }
+
   // Check if cart is empty
   checkCartEmptyState() {
-    if (this.cartState.isEmpty()) {
+    if (this.cartStateManager.isEmpty()) {
       window.location.reload();
     }
   }
-
-  // Get cart state for external access (read-only)
-  getCartState() {
-    return {
-      items: this.cartState.getItems(),
-      itemCount: this.cartState.getItemCount(),
-      totalPrice: this.cartState.getTotalPrice(),
-      isEmpty: this.cartState.isEmpty()
-    };
-  }
 }
 
-// Initialize services
-const authService = new AuthService();
-const cartManager = new CartManager();
-
-// Cart Manager class to consolidate all cart-related functionality
-class CartManager {
-  constructor() {
-    this.cartService = new CartService();
-    this.debounceTimer = null;
-    this.init();
+// Cart UI Manager to handle display logic
+class CartUIManager {
+  constructor(cartStateManager, cartService) {
+    this.cartStateManager = cartStateManager;
+    this.cartService = cartService;
   }
 
-  // Initialize cart manager
-  init() {
-    this.loadCartData();
-    this.setupEventListeners();
-  }
-
-  // Load initial cart data
-  async loadCartData() {
-    try {
-      await this.cartService.getCartData();
-    } catch (error) {
-      console.error('Failed to load cart data:', error);
-      this.showNotification('Failed to load cart', Config.NOTIFICATION.ERROR_DURATION_MS);
-    }
-  }
-
-  // Setup all event listeners
-  setupEventListeners() {
-    // Order creation
-    const createOrderButton = DOMHelpers.getCreateOrderButton();
-    createOrderButton.addEventListener('click', this.handleOrderCreation.bind(this));
-
-    // Logout
-    const logoutLink = DOMHelpers.getLogoutLink();
-    logoutLink.addEventListener('click', this.handleLogout.bind(this));
-
-    // Profile dropdown
-    const profileDropdown = DOMHelpers.getProfileDropdown();
-    profileDropdown.addEventListener('click', this.handleProfileDropdown.bind(this));
-
-    // Close dropdown when clicking outside
-    document.addEventListener('click', this.handleOutsideClick.bind(this));
-  }
-
-  // Handle order creation
-  async handleOrderCreation() {
-    const deliveryDateInput = DOMHelpers.getDeliveryDateInput();
-    const addressInput = DOMHelpers.getAddressInput();
-
-    const deliveryTimeValue = deliveryDateInput.value;
-    const addressValue = addressInput.value;
-
-    try {
-      const orderData = new OrderData(deliveryTimeValue, addressValue);
-      const orderApiClient = new ApiClient('https://food-delivery.int.kreosoft.space/api');
-      await orderApiClient.post('/order', orderData);
-      this.showNotification('Order created successfully');
-    } catch (error) {
-      if (error.message.includes('Delivery time') || error.message.includes('Address')) {
-        this.showNotification(error.message, Config.NOTIFICATION.VALIDATION_ERROR_DURATION_MS);
-      } else {
-        console.error('Order creation failed:', error);
-        this.showNotification('Failed to create order. Please try again.', Config.NOTIFICATION.VALIDATION_ERROR_DURATION_MS);
-      }
-    }
-  }
-
-  // Handle logout
-  async handleLogout(event) {
-    event.preventDefault();
-    try {
-      await authService.logout();
-      window.location.href = '/Login/login.html';
-    } catch (error) {
-      console.error('Logout error:', error);
-      window.location.href = '/Login/login.html';
-    }
-  }
-
-  // Handle profile dropdown
-  handleProfileDropdown() {
-    const dropdownContent = this.querySelector('.dropdown-content');
-    dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
-  }
-
-  // Handle outside click for dropdown
-  handleOutsideClick(event) {
-    const dropdowns = document.querySelectorAll('.select-dropdown1');
-    dropdowns.forEach(dropdown => {
-      if (!dropdown.contains(event.target)) {
-        dropdown.querySelector('.dropdown-content').style.display = 'none';
-      }
-    });
+  // Handle cart state changes
+  onCartStateChanged(cartState) {
+    this.displayCartItems(cartState.items);
   }
 
   // Display cart items
@@ -508,20 +486,10 @@ class CartManager {
       return;
     }
 
+    deliveryContainer.style.display = 'block';
+
     cartData.forEach(item => {
       const cartItem = this.createCartItemElement(item);
-      const { numericInput, minusButton, numericDisplay, plusButton } = this.createNumericInput(item);
-      
-      this.setupNumericInputListeners(minusButton, numericDisplay, plusButton, item);
-      cartItem.appendChild(numericInput);
-      
-      const totalPrice = this.createTotalPriceElement(item);
-      cartItem.appendChild(totalPrice);
-      
-      const trashIcon = this.createTrashIcon(item, cartItem);
-      cartItem.appendChild(trashIcon);
-      
-      this.setupHoverEffects(cartItem);
       cartItemsContainer.appendChild(cartItem);
     });
   }
@@ -530,41 +498,50 @@ class CartManager {
   createCartItemElement(item) {
     const cartItem = document.createElement('div');
     cartItem.classList.add('cart-item');
-    
-    const image = document.createElement('img');
-    image.src = item.image;
-    cartItem.appendChild(image);
-    
-    const name = document.createElement('div');
-    name.textContent = item.name;
-    cartItem.appendChild(name);
-    
-    const price = document.createElement('div');
-    price.textContent = `Price: ${item.price} ₽`;
-    cartItem.appendChild(price);
-    
+    cartItem.setAttribute('data-item-id', item.id);
+
+    const itemImage = document.createElement('img');
+    itemImage.src = item.image;
+    itemImage.alt = item.name;
+
+    const itemInfo = document.createElement('div');
+    itemInfo.classList.add('item-info');
+    itemInfo.innerHTML = `
+      <h4>${item.name}</h4>
+      <p>${item.description}</p>
+    `;
+
+    const numericInput = this.createNumericInput(item);
+    const totalPrice = this.createTotalPriceElement(item);
+    const trashIcon = this.createTrashIcon(item, cartItem);
+
+    cartItem.appendChild(itemImage);
+    cartItem.appendChild(itemInfo);
+    cartItem.appendChild(numericInput.numericInput);
+    cartItem.appendChild(totalPrice);
+    cartItem.appendChild(trashIcon);
+
+    this.setupHoverEffects(cartItem);
+    this.setupNumericInputListeners(numericInput.minusButton, numericInput.numericDisplay, numericInput.plusButton, item);
+
     return cartItem;
   }
 
-  // Create numeric input with buttons
+  // Create numeric input
   createNumericInput(item) {
     const numericInput = document.createElement('div');
     numericInput.classList.add('numeric-input');
-    
+
     const minusButton = document.createElement('button');
-    minusButton.innerHTML = '<i class="fa-solid fa-minus"></i>';
-    
+    minusButton.textContent = '-';
+    minusButton.disabled = item.amount === 1;
+
     const numericDisplay = document.createElement('span');
-    numericDisplay.classList.add('numeric-display');
     numericDisplay.textContent = item.amount;
-    
+
     const plusButton = document.createElement('button');
-    plusButton.innerHTML = '<i class="fa-solid fa-plus"></i>';
-    
-    if (parseInt(numericDisplay.textContent) === 1) {
-      minusButton.disabled = true;
-    }
-    
+    plusButton.textContent = '+';
+
     numericInput.appendChild(minusButton);
     numericInput.appendChild(numericDisplay);
     numericInput.appendChild(plusButton);
@@ -660,10 +637,127 @@ class CartManager {
       window.location.reload();
     }, duration);
   }
+}
+
+// Initialize services with proper dependency injection
+const authService = new AuthService();
+const cartStateManager = new CartStateManager();
+const cartService = new CartService(cartStateManager);
+const cartUIManager = new CartUIManager(cartStateManager, cartService);
+
+// Register UI manager as observer
+cartStateManager.addObserver(cartUIManager);
+
+// Cart Manager class to orchestrate cart operations
+class CartManager {
+  constructor() {
+    this.cartService = cartService;
+    this.cartStateManager = cartStateManager;
+    this.cartUIManager = cartUIManager;
+    this.init();
+  }
+
+  // Initialize cart manager
+  init() {
+    this.loadCartData();
+    this.setupEventListeners();
+  }
+
+  // Load initial cart data
+  async loadCartData() {
+    try {
+      await this.cartService.getCartData();
+    } catch (error) {
+      console.error('Failed to load cart data:', error);
+      this.showNotification('Failed to load cart', Config.NOTIFICATION.ERROR_DURATION_MS);
+    }
+  }
+
+  // Setup all event listeners
+  setupEventListeners() {
+    // Order creation
+    const createOrderButton = DOMHelpers.getCreateOrderButton();
+    createOrderButton.addEventListener('click', this.handleOrderCreation.bind(this));
+
+    // Logout
+    const logoutLink = DOMHelpers.getLogoutLink();
+    logoutLink.addEventListener('click', this.handleLogout.bind(this));
+
+    // Profile dropdown
+    const profileDropdown = DOMHelpers.getProfileDropdown();
+    profileDropdown.addEventListener('click', this.handleProfileDropdown.bind(this));
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', this.handleOutsideClick.bind(this));
+  }
+
+  // Handle order creation
+  async handleOrderCreation() {
+    const deliveryDateInput = DOMHelpers.getDeliveryDateInput();
+    const addressInput = DOMHelpers.getAddressInput();
+
+    const deliveryTimeValue = deliveryDateInput.value;
+    const addressValue = addressInput.value;
+
+    try {
+      const orderData = new OrderData(deliveryTimeValue, addressValue);
+      const orderApiClient = new ApiClient('https://food-delivery.int.kreosoft.space/api');
+      await orderApiClient.post('/order', orderData);
+      this.showNotification('Order created successfully');
+    } catch (error) {
+      if (error.message.includes('Delivery time') || error.message.includes('Address')) {
+        this.showNotification(error.message, Config.NOTIFICATION.VALIDATION_ERROR_DURATION_MS);
+      } else {
+        console.error('Order creation failed:', error);
+        this.showNotification('Failed to create order. Please try again.', Config.NOTIFICATION.VALIDATION_ERROR_DURATION_MS);
+      }
+    }
+  }
+
+  // Handle logout
+  async handleLogout(event) {
+    event.preventDefault();
+    try {
+      await authService.logout();
+      window.location.href = '/Login/login.html';
+    } catch (error) {
+      console.error('Logout error:', error);
+      window.location.href = '/Login/login.html';
+    }
+  }
+
+  // Handle profile dropdown
+  handleProfileDropdown() {
+    const dropdownContent = this.querySelector('.dropdown-content');
+    dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
+  }
+
+  // Handle outside click for dropdown
+  handleOutsideClick(event) {
+    const dropdowns = document.querySelectorAll('.select-dropdown1');
+    dropdowns.forEach(dropdown => {
+      if (!dropdown.contains(event.target)) {
+        dropdown.querySelector('.dropdown-content').style.display = 'none';
+      }
+    });
+  }
+
+  // Show notification
+  showNotification(message, duration = Config.NOTIFICATION.DEFAULT_DURATION_MS) {
+    const notification = document.createElement('div');
+    notification.textContent = message;
+    notification.classList.add('notification');
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+      notification.remove();
+      window.location.reload();
+    }, duration);
+  }
 
   // Get cart summary for debugging/logging
   getCartSummary() {
-    return this.cartService.getCartState();
+    return this.cartStateManager.getSummary();
   }
 }
 
@@ -765,3 +859,8 @@ class CartState {
     };
   }
 }
+
+// Initialize cart manager when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  new CartManager();
+});
