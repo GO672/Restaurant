@@ -396,20 +396,17 @@ class CartService {
     this.debounceTimer = null;
   }
 
-  // Debounced cart refresh
-  async refreshCart() {
-    clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(async () => {
-      await this.getCartData();
-    }, 210);
-  }
-
   // Add item to cart
   async addItem(itemId) {
     try {
       await this.apiClient.post(`/dish/${itemId}`);
       console.log('Item added to cart successfully');
-      await this.refreshCart();
+      
+      // Debounced cart refresh
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = setTimeout(async () => {
+        await this.getCartData();
+      }, 210);
     } catch (error) {
       console.error('Error adding item to cart:', error);
       throw error;
@@ -437,7 +434,12 @@ class CartService {
     try {
       await this.apiClient.delete(`/dish/${itemId}?increase=${increase}`);
       console.log(`Quantity ${increase ? 'increased' : 'decreased'} successfully`);
-      await this.refreshCart();
+      
+      // Debounced cart refresh
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = setTimeout(async () => {
+        await this.getCartData();
+      }, 210);
     } catch (error) {
       console.error('Error updating item quantity:', error);
       throw error;
