@@ -178,6 +178,156 @@ class OrderApiService {
   }
 }
 
+// Order State Manager to eliminate temporal coupling
+class OrderStateManager {
+  constructor() {
+    this.currentOrder = null;
+    this.orderStatus = null;
+    this.confirmButton = null;
+    this.isProcessing = false;
+  }
+
+  // Set current order
+  setOrder(orderDetails) {
+    this.currentOrder = orderDetails;
+    this.orderStatus = OrderStatus.fromString(orderDetails.status);
+  }
+
+  // Get current order
+  getOrder() {
+    return this.currentOrder;
+  }
+
+  // Get current order status
+  getOrderStatus() {
+    return this.orderStatus;
+  }
+
+  // Set confirm button reference
+  setConfirmButton(button) {
+    this.confirmButton = button;
+  }
+
+  // Get confirm button
+  getConfirmButton() {
+    return this.confirmButton;
+  }
+
+  // Check if order can be confirmed
+  canConfirmOrder() {
+    return this.orderStatus && this.orderStatus.canBeConfirmed();
+  }
+
+  // Update order status
+  updateOrderStatus(newStatus) {
+    if (this.currentOrder) {
+      this.currentOrder.status = newStatus;
+      this.orderStatus = OrderStatus.fromString(newStatus);
+    }
+  }
+
+  // Set processing state
+  setProcessing(isProcessing) {
+    this.isProcessing = isProcessing;
+  }
+
+  // Check if currently processing
+  isCurrentlyProcessing() {
+    return this.isProcessing;
+  }
+
+  // Validate order state
+  validateOrderState() {
+    if (!this.currentOrder) {
+      throw new Error('No order loaded');
+    }
+    if (!this.orderStatus) {
+      throw new Error('Invalid order status');
+    }
+    if (this.isProcessing) {
+      throw new Error('Order operation already in progress');
+    }
+  }
+
+  // Reset state
+  reset() {
+    this.currentOrder = null;
+    this.orderStatus = null;
+    this.confirmButton = null;
+    this.isProcessing = false;
+  }
+}
+
+// Order Confirmation Service to handle confirmation logic
+class OrderConfirmationService {
+  constructor(apiService, uiService, stateManager) {
+    this.apiService = apiService;
+    this.uiService = uiService;
+    this.stateManager = stateManager;
+  }
+
+  // Confirm order with proper state management
+  async confirmOrder() {
+    // Validate state before proceeding
+    this.stateManager.validateOrderState();
+    
+    // Set processing state
+    this.stateManager.setProcessing(true);
+    
+    try {
+      // Disable UI immediately to prevent double-clicks
+      this.disableConfirmationUI();
+      
+      // Perform API call
+      await this.apiService.confirmOrder(this.stateManager.getOrder().id);
+      
+      // Update state
+      this.stateManager.updateOrderStatus(OrderStatus.VALID_STATUSES.DELIVERED);
+      
+      // Update UI
+      this.updateUIAfterConfirmation();
+      
+      // Show success notification
+      this.uiService.showNotification('Order Confirmed successfully');
+      
+    } catch (error) {
+      console.error('Failed to confirm order:', error);
+      this.uiService.showErrorNotification('Failed to confirm order', 3000);
+      
+      // Re-enable UI on error
+      this.enableConfirmationUI();
+    } finally {
+      // Reset processing state
+      this.stateManager.setProcessing(false);
+    }
+  }
+
+  // Disable confirmation UI
+  disableConfirmationUI() {
+    const confirmButton = this.stateManager.getConfirmButton();
+    if (confirmButton) {
+      this.uiService.hideConfirmButton(confirmButton);
+    }
+  }
+
+  // Enable confirmation UI (for error cases)
+  enableConfirmationUI() {
+    const confirmButton = this.stateManager.getConfirmButton();
+    if (confirmButton) {
+      this.uiService.showConfirmButton(confirmButton);
+    }
+  }
+
+  // Update UI after successful confirmation
+  updateUIAfterConfirmation() {
+    const order = this.stateManager.getOrder();
+    if (order) {
+      // Update order status display
+      this.uiService.updateOrderStatus(order.status);
+    }
+  }
+}
+
 // Order UI Service to handle DOM manipulations
 class OrderUIService {
   constructor() {
@@ -195,6 +345,11 @@ class OrderUIService {
 
     // Update dishes list
     this.updateDishesList(orderDetails.dishes);
+  }
+
+  // Update order status display
+  updateOrderStatus(status) {
+    this.updateElement('order-status', `Status: ${status}`);
   }
 
   // Update a single element
@@ -233,6 +388,13 @@ class OrderUIService {
   hideConfirmButton(button) {
     if (button) {
       button.style.visibility = 'hidden';
+    }
+  }
+
+  // Show confirm button
+  showConfirmButton(button) {
+    if (button) {
+      button.style.visibility = 'visible';
     }
   }
 
@@ -289,6 +451,12 @@ class OrderDetailsController {
   constructor() {
     this.apiService = new OrderApiService();
     this.uiService = new OrderUIService();
+    this.stateManager = new OrderStateManager();
+    this.confirmationService = new OrderConfirmationService(
+      this.apiService, 
+      this.uiService, 
+      this.stateManager
+    );
     this.urlParams = new URLParams();
     this.orderId = this.urlParams.getString('id');
     this.init();
@@ -317,44 +485,39 @@ class OrderDetailsController {
   async loadOrderDetails() {
     const orderDetails = await this.apiService.getOrderDetails(this.orderId);
     
-    // Create order status value object
-    const orderStatus = OrderStatus.fromString(orderDetails.status);
+    // Set order in state manager
+    this.stateManager.setOrder(orderDetails);
     
     // Update UI with order details
     this.uiService.updateOrderDetails(orderDetails);
     
     // Setup confirm button if order can be confirmed
-    if (orderStatus.canBeConfirmed()) {
-      this.setupConfirmButton(orderDetails);
+    if (this.stateManager.canConfirmOrder()) {
+      this.setupConfirmButton();
     }
   }
 
   // Setup confirm order button
-  setupConfirmButton(orderDetails) {
+  setupConfirmButton() {
     const confirmButton = this.uiService.createConfirmButton(
-      orderDetails.id,
-      async () => await this.handleOrderConfirmation(orderDetails, confirmButton)
+      this.stateManager.getOrder().id,
+      () => this.handleOrderConfirmation()
     );
+    
+    // Store button reference in state manager
+    this.stateManager.setConfirmButton(confirmButton);
   }
 
   // Handle order confirmation
-  async handleOrderConfirmation(orderDetails, confirmButton) {
-    try {
-      await this.apiService.confirmOrder(orderDetails.id);
-      
-      // Hide confirm button
-      this.uiService.hideConfirmButton(confirmButton);
-      
-      // Update order status locally
-      orderDetails.status = OrderStatus.VALID_STATUSES.DELIVERED;
-      
-      // Show success notification
-      this.uiService.showNotification('Order Confirmed successfully');
-      
-    } catch (error) {
-      console.error('Failed to confirm order:', error);
-      this.uiService.showErrorNotification('Failed to confirm order', 3000);
+  async handleOrderConfirmation() {
+    // Check if already processing
+    if (this.stateManager.isCurrentlyProcessing()) {
+      console.warn('Order confirmation already in progress');
+      return;
     }
+    
+    // Delegate to confirmation service
+    await this.confirmationService.confirmOrder();
   }
 }
 
