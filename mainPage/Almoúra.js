@@ -533,6 +533,7 @@ function updatePagination() {
     window.scrollTo(0, scrollPosition);
 }
 
+// REMOVE THIS ENTIRE SECTION:
 const selectbtn = document.querySelector(".select-btn");
 const items = document.querySelectorAll(".item");
 
@@ -603,28 +604,21 @@ document.addEventListener("click", function (e) {
     }
 });
 
-
-
-
 // profile icon dropdown
 document.querySelector('.select-dropdown1').addEventListener('click', function() {
     const dropdownContent = this.querySelector('.dropdown-content');
     dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
-  });
+});
 
-  // Close dropdown content when clicking outside the dropdown
-  document.addEventListener('click', function(event) {
+// Close dropdown content when clicking outside the dropdown
+document.addEventListener('click', function(event) {
     const dropdowns = document.querySelectorAll('.select-dropdown1');
     dropdowns.forEach(function(dropdown) {
-      if (!dropdown.contains(event.target)) {
-        dropdown.querySelector('.dropdown-content').style.display = 'none';
-      }
+        if (!dropdown.contains(event.target)) {
+            dropdown.querySelector('.dropdown-content').style.display = 'none';
+        }
     });
-  });
-
-
-
-
+});
 
   document.addEventListener('DOMContentLoaded', function() {
     const token = localStorage.getItem('token');
