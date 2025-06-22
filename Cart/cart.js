@@ -1,3 +1,123 @@
+// Helper function to create cart item element
+const createCartItemElement = (item) => {
+  const cartItem = document.createElement('div');
+  cartItem.classList.add('cart-item');
+  
+  // Add image
+  const image = document.createElement('img');
+  image.src = item.image;
+  cartItem.appendChild(image);
+  
+  // Add name
+  const name = document.createElement('div');
+  name.textContent = item.name;
+  cartItem.appendChild(name);
+  
+  // Add price
+  const price = document.createElement('div');
+  price.textContent = `Price: ${item.price} ₽`;
+  cartItem.appendChild(price);
+  
+  return cartItem;
+};
+
+// Helper function to create numeric input with buttons
+const createNumericInput = (item) => {
+  const numericInput = document.createElement('div');
+  numericInput.classList.add('numeric-input');
+  
+  const minusButton = document.createElement('button');
+  minusButton.innerHTML = '<i class="fa-solid fa-minus"></i>';
+  
+  const numericDisplay = document.createElement('span');
+  numericDisplay.classList.add('numeric-display');
+  numericDisplay.textContent = item.amount;
+  
+  const plusButton = document.createElement('button');
+  plusButton.innerHTML = '<i class="fa-solid fa-plus"></i>';
+  
+  // Set initial state
+  if (parseInt(numericDisplay.textContent) === 1) {
+    minusButton.disabled = true;
+  }
+  
+  numericInput.appendChild(minusButton);
+  numericInput.appendChild(numericDisplay);
+  numericInput.appendChild(plusButton);
+  
+  return { numericInput, minusButton, numericDisplay, plusButton };
+};
+
+// Helper function to set up numeric input event listeners
+const setupNumericInputListeners = (minusButton, numericDisplay, plusButton, item) => {
+  minusButton.addEventListener('click', () => {
+    let value = parseInt(numericDisplay.textContent);
+    value = Math.max(value - 1, 0);
+    numericDisplay.textContent = value;
+    
+    if (parseInt(numericDisplay.textContent) === 1) {
+      minusButton.disabled = true;
+    }
+    decreaseQuantity(item.id);
+  });
+  
+  plusButton.addEventListener('click', () => {
+    let value = parseInt(numericDisplay.textContent);
+    value++;
+    numericDisplay.textContent = value;
+    
+    if (parseInt(numericDisplay.textContent) !== 1) {
+      minusButton.disabled = false;
+    }
+    addToCart(item.id);
+  });
+};
+
+// Helper function to set up hover effects
+const setupHoverEffects = (cartItem) => {
+  cartItem.addEventListener('mouseenter', () => {
+    cartItem.hoverTimeout = setTimeout(() => {
+      cartItem.classList.add('show-trash');
+    }, 100);
+  });
+  
+  cartItem.addEventListener('mouseleave', () => {
+    clearTimeout(cartItem.hoverTimeout);
+    cartItem.classList.remove('show-trash');
+  });
+};
+
+// Helper function to create trash icon
+const createTrashIcon = (item, cartItem) => {
+  const trashIcon = document.createElement('i');
+  trashIcon.classList.add('fa-solid', 'fa-trash');
+  trashIcon.addEventListener('click', () => {
+    removeItemFromCart(item.id, cartItem);
+  });
+  return trashIcon;
+};
+
+// Helper function to create total price element
+const createTotalPriceElement = (item) => {
+  const totalPrice = document.createElement('div');
+  totalPrice.textContent = `Total Price: ${item.totalPrice} ₽`;
+  return totalPrice;
+};
+
+// Helper function to handle empty cart state
+const handleEmptyCart = (cartItemsContainer, deliveryContainer) => {
+  cartItemsContainer.innerHTML = '<h5>Cart is empty...)</h5>';
+  deliveryContainer.style.display = 'none';
+};
+
+// Helper function to check if cart becomes empty after item removal
+const checkCartEmptyState = () => {
+  const cartItems = document.querySelectorAll('.cart-item');
+  if (cartItems.length === 0) {
+    window.location.reload();
+  }
+};
+
 const displayCartItems = (cartData) => {
   const cartItemsContainer = document.getElementById('cart-items-container');
   const deliveryContainer = document.querySelector('.delivery-container');
@@ -5,97 +125,30 @@ const displayCartItems = (cartData) => {
   cartItemsContainer.innerHTML = '';
 
   if (cartData.length === 0) {
-    // If cart is empty, display a message and hide the delivery container
-    cartItemsContainer.innerHTML = '<h5>Cart is empty...)</h5>';
-    deliveryContainer.style.display = 'none';
-    return; // Exit the function
+    handleEmptyCart(cartItemsContainer, deliveryContainer);
+    return;
   }
 
-  
   cartData.forEach(item => {
-    const cartItem = document.createElement('div');
-    cartItem.classList.add('cart-item');
-
-    // Image
-    const image = document.createElement('img');
-    image.src = item.image;
-    cartItem.appendChild(image);
-
-    // Name
-    const name = document.createElement('div');
-    name.textContent = item.name;
-    cartItem.appendChild(name);
-
-    // Price
-    const price = document.createElement('div');
-    price.textContent = `Price: ${item.price} ₽`;
-    cartItem.appendChild(price);
-
-    // Numeric Input with Buttons
-    const numericInput = document.createElement('div');
-    numericInput.classList.add('numeric-input');
-    const minusButton = document.createElement('button');
-    minusButton.innerHTML = '<i class="fa-solid fa-minus"></i>';
-    const numericDisplay = document.createElement('span');
-    numericDisplay.classList.add('numeric-display');
-    numericDisplay.textContent = item.amount;
-    const plusButton = document.createElement('button');
-    plusButton.innerHTML = '<i class="fa-solid fa-plus"></i>';
-
-    minusButton.addEventListener('click', () => {
-      let value = parseInt(numericDisplay.textContent);
-      value = Math.max(value - 1, 0);
-      numericDisplay.textContent = value;
-      if (parseInt(numericDisplay.textContent) === 1) {
-        minusButton.disabled = true;
-      }
-        decreaseQuantity(item.id);
-    });
+    // Create main cart item element
+    const cartItem = createCartItemElement(item);
     
-    if (parseInt(numericDisplay.textContent) === 1) {
-      minusButton.disabled = true;
-    }
-
-    plusButton.addEventListener('click', () => {
-      let value = parseInt(numericDisplay.textContent);
-      value++;
-      numericDisplay.textContent = value;
-      if (parseInt(numericDisplay.textContent) !== 1) {
-        minusButton.disabled = false;
-      }
-      addToCart(item.id);
-    });
-    
-
-    cartItem.addEventListener('mouseenter', () => {
-      cartItem.hoverTimeout = setTimeout(() => {
-        cartItem.classList.add('show-trash');
-      }, 100); // Add the class after a 0.3-second delay (300 milliseconds)
-    });
-    
-    cartItem.addEventListener('mouseleave', () => {
-      clearTimeout(cartItem.hoverTimeout); // Cancel the timeout if the mouse leaves before the timeout occurs
-      cartItem.classList.remove('show-trash');
-    });
-    
-
-    numericInput.appendChild(minusButton);
-    numericInput.appendChild(numericDisplay);
-    numericInput.appendChild(plusButton);
+    // Create and set up numeric input
+    const { numericInput, minusButton, numericDisplay, plusButton } = createNumericInput(item);
+    setupNumericInputListeners(minusButton, numericDisplay, plusButton, item);
     cartItem.appendChild(numericInput);
-
-    const totalPrice = document.createElement('div');
-    totalPrice.textContent = `Total Price: ${item.totalPrice} ₽`;
+    
+    // Add total price
+    const totalPrice = createTotalPriceElement(item);
     cartItem.appendChild(totalPrice);
     
-    // Trash Icon
-    const trashIcon = document.createElement('i');
-    trashIcon.classList.add('fa-solid', 'fa-trash');
-    trashIcon.addEventListener('click', () => {
-      removeItemFromCart(item.id, cartItem);
-    });
+    // Add trash icon
+    const trashIcon = createTrashIcon(item, cartItem);
     cartItem.appendChild(trashIcon);
-
+    
+    // Set up hover effects
+    setupHoverEffects(cartItem);
+    
     cartItemsContainer.appendChild(cartItem);
   });
 };
@@ -121,18 +174,12 @@ const removeItemFromCart = (dishId, cartItemElement) => {
       // Remove the cart item from the DOM
       cartItemElement.remove();
       // Check if the cart is empty after removing the item
-      const cartItems = document.querySelectorAll('.cart-item');
-      if (cartItems.length === 0) {
-          window.location.reload();
-      }
+      checkCartEmptyState();
   })
   .catch(error => {
       console.error('There was a problem removing the item from the cart:', error);
   });
 };
-
-
-
 
 let debounceTimer;
 
@@ -170,7 +217,6 @@ const addToCart = async (dishId) => {
   }
 };
 
-
 const decreaseQuantity = async (dishId) => {
   try {
     const token = localStorage.getItem('token');
@@ -197,7 +243,6 @@ const decreaseQuantity = async (dishId) => {
     console.error('There was a problem decreasing the quantity of the dish:', error);
   }
 };
-
 
 // Retrieve input values
 const deliveryDateInput = document.getElementById('Date');
@@ -264,37 +309,6 @@ createOrderButton.addEventListener('click', async () => {
   }
 });
 
-
-
-// const increaseQuantity = () => {
-//   const token = localStorage.getItem('token');
-//   if (!token) {
-//     console.error('No token found in localStorage.');
-//     return;
-//   }
-
-//   fetch('https://food-delivery.int.kreosoft.space/api/basket', {
-//     method: 'GET',
-//     headers: {
-//       'Authorization': `Bearer ${token}`
-//     }
-//   })
-//   .then(response => {
-//     if (!response.ok) {
-//       throw new Error('Network response was not ok');
-//     }
-//     return response.json();
-//   })
-//   .then(data => {
-//     // Process the cart data received from the server
-//     console.log('Cart Data:', data);
-//     displayCartItems(data);
-//   })
-//   .catch(error => {
-//     console.error('There was a problem fetching cart data:', error);
-//   });
-// };
-
 const getCartData = () => {
   const token = localStorage.getItem('token');
   if (!token) {
@@ -350,9 +364,6 @@ document.getElementById('logout-link').addEventListener('click', function(event)
       console.error('Error during logout:', error);
   });
 });
-
-
-
 
 // profile icon dropdown
 document.querySelector('.select-dropdown1').addEventListener('click', function() {
