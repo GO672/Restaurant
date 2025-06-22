@@ -491,6 +491,160 @@ class URLParamsService {
   }
 }
 
+// Pagination Service to centralize pagination operations and eliminate divergent change
+class PaginationService {
+  constructor(pageState, urlParamsService) {
+    this.pageState = pageState;
+    this.urlParamsService = urlParamsService;
+    this.container = null;
+  }
+
+  // Initialize pagination container
+  initialize() {
+    this.container = document.getElementById("pagination");
+    if (!this.container) {
+      console.warn('Pagination container not found');
+    }
+  }
+
+  // Update pagination display
+  update() {
+    if (!this.container) {
+      this.initialize();
+    }
+
+    const scrollPosition = window.scrollY;
+    this.container.innerHTML = '';
+
+    // Get current page from URL parameters
+    const currentPage = this.urlParamsService.getIntParam('page', 1);
+    this.pageState.setPage(currentPage);
+    
+    const totalPages = this.pageState.getTotalPages();
+
+    // Create previous button
+    this.createPreviousButton(currentPage, totalPages);
+
+    // Create page number buttons
+    this.createPageNumberButtons(currentPage, totalPages);
+
+    // Create next button
+    this.createNextButton(currentPage, totalPages);
+
+    // Restore scroll position
+    window.scrollTo(0, scrollPosition);
+  }
+
+  // Create previous button
+  createPreviousButton(currentPage, totalPages) {
+    if (currentPage > 1) {
+      const prevButton = document.createElement('a');
+      prevButton.href = "#";
+      prevButton.textContent = '«';
+      prevButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        this.goToPreviousPage();
+      });
+      this.container.appendChild(prevButton);
+    }
+  }
+
+  // Create page number buttons
+  createPageNumberButtons(currentPage, totalPages) {
+    let startPage = Math.max(1, currentPage - 1);
+    let endPage = Math.min(totalPages, startPage + 2);
+    
+    if (endPage === totalPages) {
+      startPage = Math.max(1, endPage - 2);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      const link = document.createElement('a');
+      link.href = `#${i}`;
+      link.textContent = i;
+      
+      if (i === currentPage) {
+        link.classList.add('active');
+      }
+      
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        this.goToPage(i);
+      });
+      
+      this.container.appendChild(link);
+    }
+  }
+
+  // Create next button
+  createNextButton(currentPage, totalPages) {
+    if (currentPage < totalPages) {
+      const nextButton = document.createElement('a');
+      nextButton.href = "#";
+      nextButton.textContent = '»';
+      nextButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        this.goToNextPage();
+      });
+      this.container.appendChild(nextButton);
+    }
+  }
+
+  // Go to specific page
+  goToPage(pageNumber) {
+    this.pageState.setPage(pageNumber);
+    this.navigateToPage();
+  }
+
+  // Go to previous page
+  goToPreviousPage() {
+    this.pageState.previousPage();
+    this.navigateToPage();
+  }
+
+  // Go to next page
+  goToNextPage() {
+    this.pageState.nextPage();
+    this.navigateToPage();
+  }
+
+  // Navigate to current page (common logic for all navigation)
+  navigateToPage() {
+    fetchData(this.pageState.getPage());
+    window.scrollTo(0, 0);
+  }
+
+  // Reset to first page
+  resetToFirstPage() {
+    this.pageState.resetToFirstPage();
+  }
+
+  // Get current page
+  getCurrentPage() {
+    return this.pageState.getPage();
+  }
+
+  // Get total pages
+  getTotalPages() {
+    return this.pageState.getTotalPages();
+  }
+
+  // Check if on first page
+  isFirstPage() {
+    return this.pageState.isFirstPage();
+  }
+
+  // Check if on last page
+  isLastPage() {
+    return this.pageState.isLastPage();
+  }
+
+  // Update total pages from API response
+  updateTotalPages(totalPages) {
+    this.pageState.setTotalPages(totalPages);
+  }
+}
+
 // Initialize services
 const apiClient = new ApiClient();
 const authService = new AuthService();
@@ -498,6 +652,9 @@ const urlParamsService = new URLParamsService();
 
 // Initialize page state
 const pageState = new PageState();
+
+// Initialize pagination service
+const paginationService = new PaginationService(pageState, urlParamsService);
 
 // DOM Helper Functions to eliminate message chains
 function getCheckedItems() {
@@ -541,7 +698,7 @@ window.addEventListener('DOMContentLoaded', () => {
         pageState.setSelectedCategories(selectedCategories);
         
         // Apply filters and fetch data
-        pageState.resetToFirstPage(); 
+        paginationService.resetToFirstPage(); 
         fetchData(pageState.getPage());
     });
 
@@ -560,7 +717,7 @@ function fetchData(pageNumber) {
     const getDishes = async () => {
         try {
             const data = await apiClient.get('/dish', params);
-            pageState.setTotalPages(data.pagination.count);
+            paginationService.updateTotalPages(data.pagination.count);
             let cards = getCardsContainer();
             cards.innerHTML = '';
 
@@ -642,78 +799,51 @@ function fetchData(pageNumber) {
                         if (!response.ok) {
                             throw new Error('Network response was not ok');
                         }
-                        console.log(ratingScore);
+                
                         console.log('Rating score set successfully.');
                     } catch (error) {
                         console.error('There was a problem setting the rating score:', error);
                     }
                 };
 
-
-                const description = document.createElement('div');
-                description.classList.add('Description');
-                description.textContent = dish.description;
-                const price = document.createElement('div');
-                price.classList.add('price');
-                price.textContent = `Price - ${dish.price} ₽`;
-
-
-                card.addEventListener('click', (event) => {
-                    // Check if the clicked element or any of its ancestors have the class 'rate'
-                    if (!event.target.closest('.rate')) {
-                        window.location.href = `/dish-info/dish-info.html?id=${dish.id}`;
-                    }
-                });
-
-
                 const checkRatingPermission = async (dishId) => {
                     try {
-                      const token = localStorage.getItem('token');
-                      if (!token) {
-                        throw new Error('No token found in localStorage.');
-                      }
-            
-                      const response = await fetch(`https://food-delivery.int.kreosoft.space/api/dish/${dishId}/rating/check`, {
-                        method: 'GET',
-                        headers: {
-                          'accept': 'application/json',
-                          'Authorization': `Bearer ${token}`
+                        const token = localStorage.getItem('token');
+                        if (!token) {
+                            throw new Error('No token found in localStorage.');
                         }
-                      });
-            
-                      if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                      }
-            
-                      const responseData = await response.json();
-                      console.log(responseData);
-                      return responseData;
+                
+                        const response = await fetch(`https://food-delivery.int.kreosoft.space/api/dish/${dishId}/rating/check`, {
+                            method: 'GET',
+                            headers: {
+                                'accept': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                
+                        const responseData = await response.json();
+                        return responseData;
                     } catch (error) {
-                      console.error('There was a problem checking rating permission:', error);
-                      return null;
+                        console.error('There was a problem checking rating permission:', error);
+                        return null;
                     }
-                  };
-            
-                  checkRatingPermission(dish.id)
+                };
+
+                checkRatingPermission(dish.id)
                     .then(responseData => {
-                        // Check if user can rate the dish
                         if (responseData) {
-                            // Enable rating inputs
                             ratingInputs.forEach(input => {
                                 input.disabled = false;
                             });
 
-                            // Add event listener to each rating input
-                            ratingInputs.forEach(ratingInput => {
-                                ratingInput.addEventListener('click', (event) => {
-                                    const selectedRating = parseFloat(event.target.value);
-                                    setRatingScore(dish.id, selectedRating);
-                                });
-                            });
-                        } else {
-                            // User cannot rate the dish, make rating inputs read-only
-                            ratingInputs.forEach(input => {
-                                input.disabled = true;
+                            ratingFieldset.addEventListener('change', () => {
+                                const selectedRating = parseFloat(document.querySelector('input[name="' + dish.id + '-rating"]:checked').value);
+                                setRatingScore(dish.id, selectedRating);
+                                console.log(selectedRating);
                             });
                         }
                     })
@@ -721,141 +851,97 @@ function fetchData(pageNumber) {
                         console.error('There was a problem checking rating permission:', error);
                     });
 
-            
-                // Add to Cart Button
-                const addToCartButton = document.createElement('button');
-                addToCartButton.classList.add('add-to-cart-button');
-                addToCartButton.textContent = 'Add';
-            
-                // Numeric Input with Buttons
-                const numericInput = document.createElement('div');
-                numericInput.classList.add('numeric-input');
-                numericInput.style.display = 'none';
-                const minusButton = document.createElement('button');
-                minusButton.innerHTML = '<i class="fa-solid fa-minus"></i>';
-                const numericDisplay = document.createElement('span');
-                numericDisplay.classList.add('numeric-display');
-                numericDisplay.textContent = cartDataMap.get(dish.name) || '0';
-                const plusButton = document.createElement('button');
-                plusButton.innerHTML = '<i class="fa-solid fa-plus"></i>';
-
-            
                 const toggleVisibility = () => {
-                    if (numericDisplay.textContent === '0') {
-                        addToCartButton.style.display = 'inline-block';
-                        numericInput.style.display = 'none';
-                    } else {
-                        addToCartButton.style.display = 'none';
-                        numericInput.style.display = 'flex';
+                    const cartSection = card.querySelector('.cart-section');
+                    if (cartSection) {
+                        cartSection.style.display = cartSection.style.display === 'none' ? 'block' : 'none';
                     }
                 };
-            
-                plusButton.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    let value = parseInt(numericDisplay.textContent);
-                    value++;
-                    numericDisplay.textContent = value;
-                    addToCart(dish.id);
-                    toggleVisibility();
-                });
-                
-                minusButton.addEventListener('click', (event) => {
-                    event.stopPropagation(); 
-                    let value = parseInt(numericDisplay.textContent);
-                    value = Math.max(value - 1, 0);
-                    numericDisplay.textContent = value;
-                    decreaseQuantity(dish.id);
-                    toggleVisibility();
-                });
-            
-                numericInput.appendChild(minusButton);
-                numericInput.appendChild(numericDisplay);
-                numericInput.appendChild(plusButton);
-            
+
                 const addToCart = (dishId) => {
-                    const token = localStorage.getItem('token');
-                    if (!token) {
-                      console.error('No token found in localStorage.');
-                      return;
-                    }
-                  
-                    fetch(`https://food-delivery.int.kreosoft.space/api/basket/dish/${dishId}`, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                      }
-                    })
-                    .then(response => {
-                      if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                      }else{
-                        console.log("a7a");
-                        console.log(dish.id)
-                      }
-                      
-                    })
-                    .catch(error => {
-                      console.error('There was a problem adding the dish to the cart:', error);
-                    });
-                  };
+                    const quantityElement = card.querySelector('.quantity');
+                    let currentQuantity = parseInt(quantityElement.textContent);
+                    currentQuantity++;
+                    quantityElement.textContent = currentQuantity;
 
-                  const decreaseQuantity = (dishId) => {
-                    const token = localStorage.getItem('token');
-                    if (!token) {
-                      console.error('No token found in localStorage.');
-                      return;
+                    // Update cart data
+                    if (cartDataMap.has(dishId)) {
+                        cartDataMap.set(dishId, currentQuantity);
+                    } else {
+                        cartDataMap.set(dishId, currentQuantity);
                     }
 
-                    fetch(`https://food-delivery.int.kreosoft.space/api/basket/dish/${dishId}?increase=true`, {
-                      method: 'DELETE',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                      }
-                    })
-                    .then(response => {
-                      if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                      }else{
-                        console.log('a7a -');
-                      }
-                    })
-                    .catch(error => {
-                      console.error('There was a problem decreasing the quantity of the dish:', error);
-                    });
-                  };
-                  
-                  
-                  addToCartButton.addEventListener('click', () => {
-                    numericDisplay.textContent = '1';
-                    event.stopPropagation();
-                    toggleVisibility();
-                    addToCart(dish.id);
-                  });
+                    // Show cart section if hidden
+                    const cartSection = card.querySelector('.cart-section');
+                    if (cartSection && cartSection.style.display === 'none') {
+                        cartSection.style.display = 'block';
+                    }
+                };
 
-                if (cartDataMap.has(dish.name)) {
-                    numericDisplay.textContent = cartDataMap.get(dish.name);
-                    toggleVisibility();
-                }
-            
-                price.appendChild(addToCartButton);
-                price.appendChild(numericInput);
-            
+                const decreaseQuantity = (dishId) => {
+                    const quantityElement = card.querySelector('.quantity');
+                    let currentQuantity = parseInt(quantityElement.textContent);
+                    
+                    if (currentQuantity > 0) {
+                        currentQuantity--;
+                        quantityElement.textContent = currentQuantity;
+
+                        // Update cart data
+                        if (currentQuantity === 0) {
+                            cartDataMap.delete(dishId);
+                            // Hide cart section
+                            const cartSection = card.querySelector('.cart-section');
+                            if (cartSection) {
+                                cartSection.style.display = 'none';
+                            }
+                        } else {
+                            cartDataMap.set(dishId, currentQuantity);
+                        }
+                    }
+                };
+
+                const addToCartBtn = document.createElement('button');
+                addToCartBtn.textContent = 'Add to Cart';
+                addToCartBtn.addEventListener('click', () => addToCart(dish.id));
+
+                const cartSection = document.createElement('div');
+                cartSection.classList.add('cart-section');
+                cartSection.style.display = 'none';
+
+                const quantityContainer = document.createElement('div');
+                quantityContainer.classList.add('quantity-container');
+
+                const decreaseBtn = document.createElement('button');
+                decreaseBtn.textContent = '-';
+                decreaseBtn.addEventListener('click', () => decreaseQuantity(dish.id));
+
+                const quantity = document.createElement('span');
+                quantity.classList.add('quantity');
+                quantity.textContent = '0';
+
+                const increaseBtn = document.createElement('button');
+                increaseBtn.textContent = '+';
+                increaseBtn.addEventListener('click', () => addToCart(dish.id));
+
+                quantityContainer.appendChild(decreaseBtn);
+                quantityContainer.appendChild(quantity);
+                quantityContainer.appendChild(increaseBtn);
+
+                cartSection.appendChild(quantityContainer);
+
                 container.appendChild(name);
                 container.appendChild(category);
                 container.appendChild(ratingFieldset);
-                container.appendChild(description);
-                container.appendChild(price);
-            
+                container.appendChild(addToCartBtn);
+                container.appendChild(cartSection);
+
                 card.appendChild(image);
                 card.appendChild(container);
-            
+
                 cards.appendChild(card);
             });
-            
 
-            updatePagination();
+            paginationService.update();
         } catch (error) {
             console.error('There was a problem with the fetch operation:', error);
         }
@@ -894,68 +980,6 @@ function fetchData(pageNumber) {
       };
       
       getCartData();
-}
-
-function updatePagination() {
-    const scrollPosition = window.scrollY;
-    let pagination = document.getElementById("pagination");
-    pagination.innerHTML = '';
-
-    // Get current page from URL parameters
-    const currentPage = urlParamsService.getIntParam('page', 1);
-    pageState.setPage(currentPage);
-    
-    const totalPages = pageState.getTotalPages();
-
-    let prevButton = document.createElement('a');
-    prevButton.href = "#";
-    prevButton.textContent = '«';
-    if (currentPage > 1) {
-        prevButton.addEventListener('click', function(event) {
-            event.preventDefault();
-            pageState.previousPage();
-            fetchData(pageState.getPage());
-            window.scrollTo(0, 0);
-        });
-        pagination.appendChild(prevButton);
-    }
-
-    let startPage = Math.max(1, currentPage - 1);
-    let endPage = Math.min(totalPages, startPage + 2);
-    if (endPage === totalPages) {
-        startPage = Math.max(1, endPage - 2);
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-        let link = document.createElement('a');
-        link.href = `#${i}`;
-        link.textContent = i;
-        if (i === currentPage) {
-            link.classList.add('active');
-        }
-        link.addEventListener('click', function(event) {
-            event.preventDefault();
-            pageState.setPage(i);
-            fetchData(pageState.getPage());
-            window.scrollTo(0, 0);
-        });
-        pagination.appendChild(link);
-    }
-
-    let nextButton = document.createElement('a');
-    nextButton.href = "#";
-    nextButton.textContent = '»';
-    if (currentPage < totalPages) {
-        nextButton.addEventListener('click', function(event) {
-            event.preventDefault();
-            pageState.nextPage();
-            fetchData(pageState.getPage());
-            window.scrollTo(0, 0);
-        });
-        pagination.appendChild(nextButton);
-    }
-
-    window.scrollTo(0, scrollPosition);
 }
 
 // REMOVE THIS ENTIRE SECTION:
