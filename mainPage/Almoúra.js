@@ -1,3 +1,190 @@
+// API Client to centralize HTTP request configuration and eliminate data clumps
+class ApiClient {
+  constructor() {
+    this.baseUrl = 'https://food-delivery.int.kreosoft.space/api';
+  }
+
+  // Get default headers for authenticated requests
+  getAuthHeaders() {
+    const token = localStorage.getItem('token');
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    };
+  }
+
+  // Get headers for non-authenticated requests
+  getHeaders() {
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    };
+  }
+
+  // Make GET request
+  async get(endpoint, params = {}) {
+    const url = new URL(`${this.baseUrl}${endpoint}`);
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== null) {
+        if (Array.isArray(params[key])) {
+          params[key].forEach(value => url.searchParams.append(key, value));
+        } else {
+          url.searchParams.append(key, params[key]);
+        }
+      }
+    });
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: this.getHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Make authenticated GET request
+  async getAuth(endpoint, params = {}) {
+    const url = new URL(`${this.baseUrl}${endpoint}`);
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== null) {
+        if (Array.isArray(params[key])) {
+          params[key].forEach(value => url.searchParams.append(key, value));
+        } else {
+          url.searchParams.append(key, params[key]);
+        }
+      }
+    });
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Make POST request
+  async post(endpoint, data = null, useAuth = false) {
+    const options = {
+      method: 'POST',
+      headers: useAuth ? this.getAuthHeaders() : this.getHeaders()
+    };
+
+    if (data) {
+      options.body = JSON.stringify(data);
+    }
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, options);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Make authenticated POST request
+  async postAuth(endpoint, data = null) {
+    return this.post(endpoint, data, true);
+  }
+
+  // Make PUT request
+  async put(endpoint, data = null, useAuth = false) {
+    const options = {
+      method: 'PUT',
+      headers: useAuth ? this.getAuthHeaders() : this.getHeaders()
+    };
+
+    if (data) {
+      options.body = JSON.stringify(data);
+    }
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, options);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Make authenticated PUT request
+  async putAuth(endpoint, data = null) {
+    return this.put(endpoint, data, true);
+  }
+
+  // Make DELETE request
+  async delete(endpoint, useAuth = false) {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'DELETE',
+      headers: useAuth ? this.getAuthHeaders() : this.getHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Make authenticated DELETE request
+  async deleteAuth(endpoint) {
+    return this.delete(endpoint, true);
+  }
+}
+
+// Authentication Service to centralize auth-related operations
+class AuthService {
+  constructor() {
+    this.apiClient = new ApiClient();
+  }
+
+  // Get authentication token
+  getToken() {
+    return localStorage.getItem('token');
+  }
+
+  // Check if user is authenticated
+  isAuthenticated() {
+    return !!this.getToken();
+  }
+
+  // Logout user
+  async logout() {
+    try {
+      await this.apiClient.postAuth('/account/logout');
+      localStorage.removeItem('token');
+      return true;
+    } catch (error) {
+      console.error('Logout failed:', error);
+      return false;
+    }
+  }
+
+  // Redirect to login page
+  redirectToLogin() {
+    window.location.href = '/Login/login.html';
+  }
+
+  // Handle authentication error
+  handleAuthError(error) {
+    console.error('Authentication error:', error);
+    if (error.message.includes('401') || error.message.includes('403')) {
+      localStorage.removeItem('token');
+      this.redirectToLogin();
+    }
+  }
+}
+
 // Page state class to encapsulate pagination and filtering state
 class PageState {
   constructor() {
@@ -147,6 +334,10 @@ class PageState {
   }
 }
 
+// Initialize services
+const apiClient = new ApiClient();
+const authService = new AuthService();
+
 // Initialize page state
 const pageState = new PageState();
 
@@ -253,34 +444,36 @@ window.addEventListener('DOMContentLoaded', () => {
 function fetchData(pageNumber) {
     const sortingOption = document.querySelector('.select-dropdown input[type="radio"]:checked');
     
-    const params = new URLSearchParams();
-    if (pageState.isVegetarian()) params.set('vegetarian', pageState.isVegetarian());
-    params.set('page', pageNumber);
+    const params = {};
+    if (pageState.isVegetarian()) params.vegetarian = pageState.isVegetarian();
+    params.page = pageNumber;
     
     const selectedCategories = pageState.getSelectedCategories();
-    selectedCategories.forEach(category => {
-        params.append('categories', category);
-    });
+    if (selectedCategories.length > 0) {
+        params.categories = selectedCategories;
+    }
 
-    if (sortingOption && sortingOption.id !== "None")
-        params.append('sorting', sortingOption.id);
-    else params.delete('sorting');
+    if (sortingOption && sortingOption.id !== "None") {
+        params.sorting = sortingOption.id;
+    }
 
     // Update URL with new parameters
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    const urlParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+        if (Array.isArray(params[key])) {
+            params[key].forEach(value => urlParams.append(key, value));
+        } else {
+            urlParams.set(key, params[key]);
+        }
+    });
+    const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
     window.history.replaceState({}, '', newUrl);
     
     const cartDataMap = new Map();
 
-    const getDishes = () => {
-    fetch(`https://food-delivery.int.kreosoft.space/api/dish?${params.toString()}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
+    const getDishes = async () => {
+        try {
+            const data = await apiClient.get('/dish', params);
             pageState.setTotalPages(data.pagination.count);
             let cards = document.getElementById("cards");
             cards.innerHTML = '';
@@ -576,10 +769,9 @@ function fetchData(pageNumber) {
             
 
             updatePagination();
-        })
-        .catch(error => {
+        } catch (error) {
             console.error('There was a problem with the fetch operation:', error);
-        });
+        }
     }
     
     const getCartData = () => {
