@@ -540,14 +540,9 @@ window.addEventListener('DOMContentLoaded', () => {
         const selectedCategories = getSelectedCategories();
         pageState.setSelectedCategories(selectedCategories);
         
-        const isVegetarianSoup = pageState.isVegetarian() && selectedCategories.length === 1 && selectedCategories[0] === 'Soup';
-    
-        if (isVegetarianSoup) {
-            alert('Sorry, there are no vegetarian soups available.');
-        } else {
-            pageState.resetToFirstPage(); 
-            fetchData(pageState.getPage());
-        }
+        // Apply filters and fetch data
+        pageState.resetToFirstPage(); 
+        fetchData(pageState.getPage());
     });
 
     fetchData(pageState.getPage());
