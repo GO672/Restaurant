@@ -1,149 +1,279 @@
-// Function to set the rating score for a dish
-const setRatingScore = async (dishId, ratingScore) => {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      throw new Error('No token found in localStorage.');
+// Dish Info Service to handle dish-related operations
+class DishInfoService {
+  constructor() {
+    this.baseUrl = 'https://food-delivery.int.kreosoft.space/api';
+  }
+
+  // Get dish details by ID
+  async getDishById(dishId) {
+    try {
+      const response = await fetch(`${this.baseUrl}/dish/${dishId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dish: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching dish details:', error);
+      throw error;
+    }
+  }
+
+  // Set rating for a dish
+  async setRating(dishId, ratingScore) {
+    try {
+      const token = this.getAuthToken();
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch(`${this.baseUrl}/dish/${dishId}/rating?ratingScore=${ratingScore}`, {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to set rating: ${response.status}`);
+      }
+
+      console.log(`Rating ${ratingScore} set successfully for dish ${dishId}`);
+      return true;
+    } catch (error) {
+      console.error('Error setting rating:', error);
+      throw error;
+    }
+  }
+
+  // Check if user can rate a dish
+  async checkRatingPermission(dishId) {
+    try {
+      const token = this.getAuthToken();
+      if (!token) {
+        return false;
+      }
+
+      const response = await fetch(`${this.baseUrl}/dish/${dishId}/rating/check`, {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error checking rating permission:', error);
+      return false;
+    }
+  }
+
+  // Get authentication token
+  getAuthToken() {
+    return localStorage.getItem('token');
+  }
+
+  // Check if user is authenticated
+  isAuthenticated() {
+    return !!this.getAuthToken();
+  }
+}
+
+// DOM Service to handle DOM manipulations
+class DOMService {
+  constructor() {
+    this.dishInfoService = new DishInfoService();
+  }
+
+  // Update dish information in the DOM
+  updateDishInfo(dishData) {
+    const elements = {
+      name: document.getElementById('dish-name'),
+      image: document.getElementById('dish-image'),
+      category: document.getElementById('dish-category'),
+      price: document.getElementById('dish-price'),
+      description: document.getElementById('dish-description'),
+      vegetarian: document.getElementById('dish-vegetarin')
+    };
+
+    // Update text content
+    if (elements.name) elements.name.textContent = dishData.name;
+    if (elements.category) elements.category.textContent = `Category: ${dishData.category}`;
+    if (elements.price) elements.price.textContent = `Price: ${dishData.price} ₽`;
+    if (elements.description) elements.description.textContent = `Description: ${dishData.description}`;
+    if (elements.vegetarian) elements.vegetarian.textContent = `${dishData.vegetarian ? 'Vegetarian' : 'Not Vegetarian'}`;
+
+    // Update image
+    if (elements.image) {
+      elements.image.src = dishData.image;
+      elements.image.alt = dishData.name;
+    }
+  }
+
+  // Create rating stars
+  createRatingStars(dishData) {
+    const ratingFieldset = document.createElement('div');
+    ratingFieldset.classList.add('rate');
+    ratingFieldset.setAttribute('data-dish-id', dishData.id);
+
+    // Create star inputs
+    for (let i = 20; i > 0; i--) {
+      const ratingInput = document.createElement('input');
+      ratingInput.setAttribute('type', 'radio');
+      ratingInput.setAttribute('id', `rating${i}-${dishData.id}`);
+      ratingInput.setAttribute('name', `${dishData.id}-rating`);
+      ratingInput.disabled = true; // Initially disabled
+      const value = i % 2 === 0 ? i / 2 : (i + 1) / 2;
+      ratingInput.setAttribute('value', `${value}`);
+
+      const ratingLabel = document.createElement('label');
+      ratingLabel.setAttribute('for', `rating${i}-${dishData.id}`);
+      ratingLabel.setAttribute('title', `${value} stars`);
+      if (i % 2 !== 0) {
+        ratingLabel.classList.add('half');
+      }
+
+      ratingFieldset.appendChild(ratingInput);
+      ratingFieldset.appendChild(ratingLabel);
     }
 
-    const response = await fetch(`https://food-delivery.int.kreosoft.space/api/dish/${dishId}/rating?ratingScore=${ratingScore}`, {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
+    // Set current rating
+    this.setCurrentRating(ratingFieldset, dishData.rating);
+
+    // Insert rating fieldset into DOM
+    const priceElement = document.getElementById('dish-price');
+    if (priceElement && priceElement.parentNode) {
+      priceElement.parentNode.insertBefore(ratingFieldset, priceElement);
+    }
+
+    return ratingFieldset;
+  }
+
+  // Set current rating display
+  setCurrentRating(ratingFieldset, rating) {
+    const ratingInputs = ratingFieldset.querySelectorAll('input');
+    const fullStars = Math.floor(rating);
+    const halfStar = rating - fullStars >= 0.5;
+    const fullStarIndex = 20 - fullStars * 2;
+
+    if (ratingInputs[fullStarIndex]) {
+      ratingInputs[fullStarIndex].checked = true;
+    }
+
+    if (halfStar && ratingInputs[fullStarIndex - 1]) {
+      ratingInputs[fullStarIndex - 1].checked = true;
+    }
+  }
+
+  // Enable rating functionality
+  enableRating(ratingFieldset, dishId) {
+    const ratingInputs = ratingFieldset.querySelectorAll('input');
+    
+    // Enable all rating inputs
+    ratingInputs.forEach(input => {
+      input.disabled = false;
     });
 
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-    console.log(ratingScore);
-    console.log('Rating score set successfully.');
-  } catch (error) {
-    console.error('There was a problem setting the rating score:', error);
-  }
-};
-
-// Function to get the value of a URL parameter
-const getParameterByName = (name, url) => {
-  if (!url) url = window.location.href;
-  name = name.replace(/[[\]]/g, '\\$&');
-  const regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
-      results = regex.exec(url);
-  if (!results) return null;
-  if (!results[2]) return '';
-  return decodeURIComponent(results[2].replace(/\+/g, ' '));
-};
-
-// Get the dish ID from the URL parameter
-const dishId = getParameterByName('id');
-
-fetch(`https://food-delivery.int.kreosoft.space/api/dish/${dishId}`)
-  .then(response => {
-      if (!response.ok) {
-          throw new Error('Network response was not ok');
-      }
-      return response.json();
-  })
-  .then(data => {
-      // Update HTML elements with dish details
-      document.getElementById('dish-name').textContent = data.name;
-      document.getElementById('dish-image').src = data.image;
-      document.getElementById('dish-image').alt = data.name;
-      document.getElementById('dish-category').textContent = `Category: ${data.category}`;
-      document.getElementById('dish-price').textContent = `Price: ${data.price} ₽`;
-      document.getElementById('dish-description').textContent = `Description: ${data.description}`;
-      document.getElementById('dish-vegetarin').textContent = `${data.vegetarian ? 'Vegetarian' : 'Not Vegetarian'}`;
-
-      // Generate rating input dynamically
-      const ratingFieldset = document.createElement('div');
-      ratingFieldset.classList.add('rate');
-      ratingFieldset.setAttribute('data-dish-id', data.id);
-
-      for (let i = 20; i > 0; i--) {
-        const ratingInput = document.createElement('input');
-        ratingInput.setAttribute('type', 'radio');
-        ratingInput.setAttribute('id', `rating${i}-${data.id}`); // Include dish ID
-        ratingInput.setAttribute('name', `${data.id}-rating`);
-        ratingInput.disabled = true; // Initially disable the rating inputs
-        const value = i % 2 === 0 ? i / 2 : (i + 1) / 2;
-        ratingInput.setAttribute('value', `${value}`);
-
-        const ratingLabel = document.createElement('label');
-        ratingLabel.setAttribute('for', `rating${i}-${data.id}`); // Include dish ID
-        ratingLabel.setAttribute('title', `${value} stars`);
-        if (i % 2 !== 0) {
-            ratingLabel.classList.add('half');
-        }
-
-        ratingFieldset.appendChild(ratingInput);
-        ratingFieldset.appendChild(ratingLabel);
-      }
-       console.log(data.rating);
-      const fullStars = Math.floor(data.rating);
-      const halfStar = data.rating - fullStars >= 0.5;
-
-      const ratingInputs = ratingFieldset.querySelectorAll('input');
-
-      const fullStarIndex = 20 - fullStars * 2;
-
-      // console.log(ratingInputs[fullStarIndex].checked)
-      if(ratingInputs[fullStarIndex]) ratingInputs[fullStarIndex].checked = true;
-
-      // If there's a half star, adjust index for half star
-      if (halfStar) {
-          if(ratingInputs[fullStarIndex]) ratingInputs[fullStarIndex - 1].checked = true;
-      }
-
-      const priceElement = document.getElementById('dish-price');
-      priceElement.parentNode.insertBefore(ratingFieldset, priceElement);
-
-      // Function to check if the user can rate the dish
-      const checkRatingPermission = async (dishId) => {
+    // Add change event listener
+    ratingFieldset.addEventListener('change', async (event) => {
+      const selectedInput = event.target;
+      if (selectedInput.type === 'radio') {
+        const selectedRating = parseFloat(selectedInput.value);
         try {
-          const token = localStorage.getItem('token');
-          if (!token) {
-            throw new Error('No token found in localStorage.');
-          }
-
-          const response = await fetch(`https://food-delivery.int.kreosoft.space/api/dish/${dishId}/rating/check`, {
-            method: 'GET',
-            headers: {
-              'accept': 'application/json',
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-
-          const responseData = await response.json();
-          return responseData;
+          await this.dishInfoService.setRating(dishId, selectedRating);
         } catch (error) {
-          console.error('There was a problem checking rating permission:', error);
-          return null;
+          console.error('Failed to set rating:', error);
         }
-      };
+      }
+    });
+  }
 
-      checkRatingPermission(dishId)
-        .then(responseData => {
-          if (responseData) {
-            ratingInputs.forEach(input => {
-              input.disabled = false;
-            });
+  // Show notification
+  showNotification(message, duration = 3000) {
+    const notification = document.createElement('div');
+    notification.textContent = message;
+    notification.classList.add('notification');
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #28a745;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      z-index: 1000;
+      animation: slideIn 0.3s ease-out;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+      notification.remove();
+    }, duration);
+  }
+}
 
-            ratingFieldset.addEventListener('change', () => {
-              const selectedRating = parseFloat(document.querySelector('input[name="' + data.id + '-rating"]:checked').value);
-              setRatingScore(data.id, selectedRating);
-              console.log(selectedRating);
-            });
-          }
-        })
-        .catch(error => {
-          console.error('There was a problem checking rating permission:', error);
-        });
-  })
-  .catch(error => {
-      console.error('There was a problem fetching dish details:', error);
-  });
+// URL Service to handle URL parameter extraction
+class URLService {
+  // Get parameter value from URL
+  static getParameterByName(name, url = window.location.href) {
+    name = name.replace(/[[\]]/g, '\\$&');
+    const regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
+    const results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, ' '));
+  }
+
+  // Get dish ID from URL
+  static getDishId() {
+    return this.getParameterByName('id');
+  }
+}
+
+// Main Dish Info Controller
+class DishInfoController {
+  constructor() {
+    this.dishInfoService = new DishInfoService();
+    this.domService = new DOMService();
+    this.dishId = URLService.getDishId();
+  }
+
+  // Initialize the dish info page
+  async initialize() {
+    if (!this.dishId) {
+      console.error('No dish ID provided in URL');
+      return;
+    }
+
+    try {
+      // Fetch dish data
+      const dishData = await this.dishInfoService.getDishById(this.dishId);
+      
+      // Update DOM with dish information
+      this.domService.updateDishInfo(dishData);
+      
+      // Create and setup rating stars
+      const ratingFieldset = this.domService.createRatingStars(dishData);
+      
+      // Check rating permission and enable if allowed
+      const canRate = await this.dishInfoService.checkRatingPermission(this.dishId);
+      if (canRate) {
+        this.domService.enableRating(ratingFieldset, this.dishId);
+      }
+      
+    } catch (error) {
+      console.error('Failed to initialize dish info:', error);
+      this.domService.showNotification('Failed to load dish information', 5000);
+    }
+  }
+}
+
+// Initialize the application
+const dishInfoController = new DishInfoController();
+dishInfoController.initialize(); 
