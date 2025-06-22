@@ -334,98 +334,210 @@ class PageState {
   }
 }
 
+// URL Parameters Service to centralize URL parsing and eliminate duplicate code
+class URLParamsService {
+  constructor() {
+    this.urlParams = new URLSearchParams(window.location.search);
+  }
+
+  // Get all URL parameters as an object
+  getAllParams() {
+    const params = {};
+    for (const [key, value] of this.urlParams.entries()) {
+      if (params[key]) {
+        // Handle multiple values for the same key
+        if (Array.isArray(params[key])) {
+          params[key].push(value);
+        } else {
+          params[key] = [params[key], value];
+        }
+      } else {
+        params[key] = value;
+      }
+    }
+    return params;
+  }
+
+  // Get a single parameter value
+  getParam(name) {
+    return this.urlParams.get(name);
+  }
+
+  // Get all values for a parameter (for arrays like categories)
+  getAllValues(name) {
+    return this.urlParams.getAll(name);
+  }
+
+  // Get parameter as integer with fallback
+  getIntParam(name, fallback = null) {
+    const value = this.getParam(name);
+    if (value === null) return fallback;
+    const parsed = parseInt(value);
+    return isNaN(parsed) ? fallback : parsed;
+  }
+
+  // Get parameter as boolean
+  getBoolParam(name, fallback = false) {
+    const value = this.getParam(name);
+    if (value === null) return fallback;
+    return value === 'true';
+  }
+
+  // Update URL with new parameters
+  updateURL(newParams) {
+    const url = new URL(window.location);
+    
+    // Clear existing parameters
+    url.search = '';
+    
+    // Add new parameters
+    Object.keys(newParams).forEach(key => {
+      if (newParams[key] !== undefined && newParams[key] !== null) {
+        if (Array.isArray(newParams[key])) {
+          newParams[key].forEach(value => url.searchParams.append(key, value));
+        } else {
+          url.searchParams.set(key, newParams[key]);
+        }
+      }
+    });
+    
+    window.history.replaceState({}, '', url.toString());
+  }
+
+  // Parse and update page state from URL
+  updatePageStateFromURL() {
+    const pageNumber = this.getIntParam('page', 1);
+    if (pageNumber !== null) {
+      pageState.setPage(pageNumber);
+    }
+
+    const isVegetarian = this.getBoolParam('vegetarian', false);
+    pageState.setVegetarian(isVegetarian);
+
+    const categories = this.getAllValues('categories');
+    pageState.setSelectedCategories(categories);
+
+    const sorting = this.getParam('sorting');
+    pageState.setCurrentSorting(sorting);
+  }
+
+  // Update UI elements from URL parameters
+  updateUIFromURL() {
+    // Update vegetarian checkbox
+    const isVegetarian = this.getBoolParam('vegetarian', false);
+    const vegetarianCheckbox = document.getElementById('is-vegetarian');
+    if (vegetarianCheckbox) {
+      vegetarianCheckbox.checked = isVegetarian;
+    }
+
+    // Update category selections
+    const categories = this.getAllValues('categories');
+    const categoryItems = document.querySelectorAll('.list-items .item');
+    
+    // Uncheck all category items
+    categoryItems.forEach(item => {
+      item.classList.remove('checked');
+    });
+
+    // Check selected categories
+    categories.forEach(category => {
+      const categoryItem = document.querySelector(`.item-text#${category}`);
+      if (categoryItem) {
+        categoryItem.parentElement.classList.add('checked');
+      }
+    });
+
+    // Update selected categories count
+    updateSelectedCategoriesCount();
+
+    // Update sorting selection
+    const sortingMethod = this.getParam('sorting');
+    if (sortingMethod) {
+      const sortingOption = document.getElementById(sortingMethod);
+      if (sortingOption) {
+        sortingOption.checked = true;
+        const selectButton = document.querySelector('.select-button');
+        if (selectButton) {
+          const selectedValue = selectButton.querySelector('.selected-value');
+          if (selectedValue && sortingOption.labels[0]) {
+            selectedValue.textContent = sortingOption.labels[0].textContent;
+          }
+        }
+      }
+    }
+  }
+
+  // Build parameters object for API calls
+  buildApiParams() {
+    const params = {};
+    
+    if (pageState.isVegetarian()) {
+      params.vegetarian = pageState.isVegetarian();
+    }
+    
+    params.page = pageState.getPage();
+    
+    const selectedCategories = pageState.getSelectedCategories();
+    if (selectedCategories.length > 0) {
+      params.categories = selectedCategories;
+    }
+
+    const sortingOption = getSortingOption();
+    if (sortingOption && sortingOption.id !== "None") {
+      params.sorting = sortingOption.id;
+    }
+
+    return params;
+  }
+}
+
 // Initialize services
 const apiClient = new ApiClient();
 const authService = new AuthService();
+const urlParamsService = new URLParamsService();
 
 // Initialize page state
 const pageState = new PageState();
 
-function parseURLParams(url) {
-    const params = new URLSearchParams(url.search);
-    const queryParams = {};
-    for (const [key, value] of params.entries()) {
-        queryParams[key] = value;
-    }
-    return queryParams;
+// DOM Helper Functions to eliminate message chains
+function getCheckedItems() {
+  return document.querySelectorAll('.list-items .item.checked');
 }
 
-function parseCategoryFilterFromURLAndUpdateUI() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const categories = urlParams.getAll('categories');
-    const categoryItems = document.querySelectorAll('.list-items .item');
+function getSelectedCategories() {
+  return Array.from(getCheckedItems()).map(item => item.querySelector('.item-text').textContent);
+}
 
-    // Uncheck all category items
-    categoryItems.forEach(item => {
-        item.classList.remove('checked');
-    });
+function setButtonText(count) {
+  const btnText = document.querySelector('.btn-text');
+  btnText.innerHTML = count > 0 ? `${count} selected` : 'Select';
+}
 
-    categories.forEach(category => {
-        const categoryItem = document.querySelector(`.item-text#${category}`);
-        if (categoryItem) {
-            categoryItem.parentElement.classList.add('checked');
-        }
-    });
+function getSortingOption() {
+  return document.querySelector('.select-dropdown input[type="radio"]:checked');
+}
 
-    updateSelectedCategoriesCount();
+function getCardsContainer() {
+  return document.getElementById('cards');
 }
 
 function updateSelectedCategoriesCount() {
-    let checked = document.querySelectorAll(".checked");
-    let btnText = document.querySelector(".btn-text");
-
-    if (checked && checked.length > 0) {
-        btnText.innerHTML = `${checked.length} selected`;
-    } else {
-        btnText.innerHTML = "Select";
-    }
-}
-
-function parseSortingFromURLAndUpdateSelectButton() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sortingMethod = urlParams.get('sorting');
-    if (sortingMethod) {
-        const sortingOption = document.getElementById(sortingMethod);
-        if (sortingOption) {
-            sortingOption.checked = true;
-            const selectButton = document.querySelector('.select-button');
-            selectButton.querySelector('.selected-value').textContent = sortingOption.labels[0].textContent;
-        }
-    }
-}
-
-function parsePageNumberFromURLAndUpdatePagination() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const pageNumber = parseInt(urlParams.get('page'));
-    if (!isNaN(pageNumber)) {
-        pageState.setPage(pageNumber);
-    }
-}
-
-function parseVegetarianFilterFromURLAndUpdateUI() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const isVegetarianParam = urlParams.get('vegetarian');
-    if (isVegetarianParam !== null) {
-        pageState.setVegetarian(isVegetarianParam === 'true');
-    }
-    document.getElementById('is-vegetarian').checked = pageState.isVegetarian();
+  const checked = getCheckedItems();
+  setButtonText(checked.length);
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-    parseVegetarianFilterFromURLAndUpdateUI();
-    parseSortingFromURLAndUpdateSelectButton();
-    parsePageNumberFromURLAndUpdatePagination();
-    parseCategoryFilterFromURLAndUpdateUI();
+    // Initialize page state and UI from URL parameters
+    urlParamsService.updatePageStateFromURL();
+    urlParamsService.updateUIFromURL();
     
-
     document.querySelector('.filter-btn').addEventListener('click', function() {
         pageState.setVegetarian(document.getElementById('is-vegetarian').checked);
         document.getElementById('is-vegetarian').addEventListener('change', function() {
             pageState.setVegetarian(this.checked);
         });
     
-        const selectedCategories = Array.from(document.querySelectorAll('.list-items .item.checked'))
-            .map(item => item.querySelector('.item-text').textContent);
+        const selectedCategories = getSelectedCategories();
         pageState.setSelectedCategories(selectedCategories);
         
         const isVegetarianSoup = pageState.isVegetarian() && selectedCategories.length === 1 && selectedCategories[0] === 'Soup';
@@ -442,32 +554,11 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function fetchData(pageNumber) {
-    const sortingOption = document.querySelector('.select-dropdown input[type="radio"]:checked');
+    // Build parameters using the URL service
+    const params = urlParamsService.buildApiParams();
     
-    const params = {};
-    if (pageState.isVegetarian()) params.vegetarian = pageState.isVegetarian();
-    params.page = pageNumber;
-    
-    const selectedCategories = pageState.getSelectedCategories();
-    if (selectedCategories.length > 0) {
-        params.categories = selectedCategories;
-    }
-
-    if (sortingOption && sortingOption.id !== "None") {
-        params.sorting = sortingOption.id;
-    }
-
     // Update URL with new parameters
-    const urlParams = new URLSearchParams();
-    Object.keys(params).forEach(key => {
-        if (Array.isArray(params[key])) {
-            params[key].forEach(value => urlParams.append(key, value));
-        } else {
-            urlParams.set(key, params[key]);
-        }
-    });
-    const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
-    window.history.replaceState({}, '', newUrl);
+    urlParamsService.updateURL(params);
     
     const cartDataMap = new Map();
 
@@ -475,12 +566,13 @@ function fetchData(pageNumber) {
         try {
             const data = await apiClient.get('/dish', params);
             pageState.setTotalPages(data.pagination.count);
-            let cards = document.getElementById("cards");
+            let cards = getCardsContainer();
             cards.innerHTML = '';
 
             const sortedDishes = data.dishes;
 
             const filteredDishes = sortedDishes.filter(dish => {
+                const selectedCategories = pageState.getSelectedCategories();
                 return selectedCategories.length === 0 || selectedCategories.includes(dish.category);
             });
             
@@ -814,10 +906,10 @@ function updatePagination() {
     let pagination = document.getElementById("pagination");
     pagination.innerHTML = '';
 
-    const queryParams = parseURLParams(window.location);
-
-    pageState.setPage(parseInt(queryParams.page) || 1);
-    const currentPage = pageState.getPage();
+    // Get current page from URL parameters
+    const currentPage = urlParamsService.getIntParam('page', 1);
+    pageState.setPage(currentPage);
+    
     const totalPages = pageState.getTotalPages();
 
     let prevButton = document.createElement('a');
