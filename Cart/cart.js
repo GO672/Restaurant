@@ -321,20 +321,11 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  // Get authentication token
-  getAuthToken() {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-    return token;
-  }
-
   // Get standard headers for authenticated requests
   getHeaders() {
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.getAuthToken()}`
+      'Authorization': authService.getAuthHeader()
     };
   }
 
@@ -343,7 +334,7 @@ class ApiClient {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${this.getAuthToken()}`
+        'Authorization': authService.getAuthHeader()
       }
     });
 
@@ -477,17 +468,12 @@ DOMHelpers.getLogoutLink().addEventListener('click', async function(event) {
   event.preventDefault(); // Prevent default action of the link
 
   try {
-    // Create API client for account endpoint
-    const accountApiClient = new ApiClient('https://food-delivery.int.kreosoft.space/api/account');
-    
-    // Make logout request
-    await accountApiClient.post('/logout');
-    
-    // Clear token and redirect
-    localStorage.removeItem('token');
+    await authService.logout();
     window.location.href = '/Login/login.html';
   } catch (error) {
     console.error('Error during logout:', error);
+    // Redirect anyway since token is cleared
+    window.location.href = '/Login/login.html';
   }
 });
 
@@ -561,3 +547,64 @@ const DOMHelpers = {
     return dropdown;
   }
 };
+
+// Authentication service to centralize token management and eliminate duplication
+class AuthService {
+  constructor() {
+    this.tokenKey = 'token';
+  }
+
+  // Get authentication token
+  getToken() {
+    const token = localStorage.getItem(this.tokenKey);
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    return token;
+  }
+
+  // Check if user is authenticated
+  isAuthenticated() {
+    try {
+      return !!this.getToken();
+    } catch {
+      return false;
+    }
+  }
+
+  // Clear authentication token
+  clearToken() {
+    localStorage.removeItem(this.tokenKey);
+  }
+
+  // Set authentication token
+  setToken(token) {
+    if (!token) {
+      throw new Error('Token cannot be empty');
+    }
+    localStorage.setItem(this.tokenKey, token);
+  }
+
+  // Get authorization header
+  getAuthHeader() {
+    return `Bearer ${this.getToken()}`;
+  }
+
+  // Logout user
+  async logout() {
+    try {
+      const apiClient = new ApiClient('https://food-delivery.int.kreosoft.space/api/account');
+      await apiClient.post('/logout');
+      this.clearToken();
+      return true;
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Clear token even if logout request fails
+      this.clearToken();
+      throw error;
+    }
+  }
+}
+
+// Initialize auth service
+const authService = new AuthService();
