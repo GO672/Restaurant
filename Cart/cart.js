@@ -133,8 +133,8 @@ const checkCartEmptyState = () => {
 };
 
 const displayCartItems = (cartData) => {
-  const cartItemsContainer = document.getElementById('cart-items-container');
-  const deliveryContainer = document.querySelector('.delivery-container');
+  const cartItemsContainer = DOMHelpers.getCartItemsContainer();
+  const deliveryContainer = DOMHelpers.getDeliveryContainer();
   
   cartItemsContainer.innerHTML = '';
 
@@ -167,10 +167,10 @@ const displayCartItems = (cartData) => {
   });
 };
 
-// Retrieve input values
-const deliveryDateInput = document.getElementById('Date');
-const addressInput = document.getElementById('address');
-const createOrderButton = document.querySelector('.delivery-container button');
+// Retrieve input values using DOM helpers
+const deliveryDateInput = DOMHelpers.getDeliveryDateInput();
+const addressInput = DOMHelpers.getAddressInput();
+const createOrderButton = DOMHelpers.getCreateOrderButton();
 
 // Function to display a temporary notification
 const showNotification = (message, duration = 1500) => {
@@ -216,7 +216,7 @@ createOrderButton.addEventListener('click', async () => {
 });
 
 // profile icon dropdown
-document.querySelector('.select-dropdown1').addEventListener('click', function() {
+DOMHelpers.getProfileDropdown().addEventListener('click', function() {
   const dropdownContent = this.querySelector('.dropdown-content');
   dropdownContent.style.display = dropdownContent.style.display === 'block' ? 'none' : 'block';
 });
@@ -460,7 +460,7 @@ class CartService {
 
   // Check if cart is empty
   checkCartEmptyState() {
-    const cartItems = document.querySelectorAll('.cart-item');
+    const cartItems = DOMHelpers.getCartItems();
     if (cartItems.length === 0) {
       window.location.reload();
     }
@@ -473,7 +473,7 @@ const cartService = new CartService();
 // Initialize cart service and load initial data
 cartService.getCartData();
 
-document.getElementById('logout-link').addEventListener('click', async function(event) {
+DOMHelpers.getLogoutLink().addEventListener('click', async function(event) {
   event.preventDefault(); // Prevent default action of the link
 
   try {
@@ -490,3 +490,74 @@ document.getElementById('logout-link').addEventListener('click', async function(
     console.error('Error during logout:', error);
   }
 });
+
+// DOM access helper methods to eliminate message chains
+const DOMHelpers = {
+  // Get cart items container
+  getCartItemsContainer() {
+    const container = document.getElementById('cart-items-container');
+    if (!container) {
+      throw new Error('Cart items container not found');
+    }
+    return container;
+  },
+
+  // Get delivery container
+  getDeliveryContainer() {
+    const container = document.querySelector('.delivery-container');
+    if (!container) {
+      throw new Error('Delivery container not found');
+    }
+    return container;
+  },
+
+  // Get all cart items
+  getCartItems() {
+    return document.querySelectorAll('.cart-item');
+  },
+
+  // Get delivery date input
+  getDeliveryDateInput() {
+    const input = document.getElementById('Date');
+    if (!input) {
+      throw new Error('Delivery date input not found');
+    }
+    return input;
+  },
+
+  // Get address input
+  getAddressInput() {
+    const input = document.getElementById('address');
+    if (!input) {
+      throw new Error('Address input not found');
+    }
+    return input;
+  },
+
+  // Get create order button
+  getCreateOrderButton() {
+    const button = document.querySelector('.delivery-container button');
+    if (!button) {
+      throw new Error('Create order button not found');
+    }
+    return button;
+  },
+
+  // Get logout link
+  getLogoutLink() {
+    const link = document.getElementById('logout-link');
+    if (!link) {
+      throw new Error('Logout link not found');
+    }
+    return link;
+  },
+
+  // Get profile dropdown
+  getProfileDropdown() {
+    const dropdown = document.querySelector('.select-dropdown1');
+    if (!dropdown) {
+      throw new Error('Profile dropdown not found');
+    }
+    return dropdown;
+  }
+};
