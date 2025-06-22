@@ -310,6 +310,7 @@ class ApiClient {
 class CartService {
   constructor() {
     this.apiClient = new ApiClient('https://food-delivery.int.kreosoft.space/api/basket');
+    this.cartState = new CartState();
     this.debounceTimer = null;
   }
 
@@ -368,7 +369,12 @@ class CartService {
     try {
       const data = await this.apiClient.get('');
       console.log('Cart Data:', data);
-      cartManager.displayCartItems(data);
+      
+      // Update cart state
+      this.cartState.updateFromServerData(data);
+      
+      // Display cart items
+      cartManager.displayCartItems(this.cartState.getItems());
     } catch (error) {
       console.error('Error fetching cart data:', error);
       throw error;
@@ -377,10 +383,19 @@ class CartService {
 
   // Check if cart is empty
   checkCartEmptyState() {
-    const cartItems = DOMHelpers.getCartItems();
-    if (cartItems.length === 0) {
+    if (this.cartState.isEmpty()) {
       window.location.reload();
     }
+  }
+
+  // Get cart state for external access (read-only)
+  getCartState() {
+    return {
+      items: this.cartState.getItems(),
+      itemCount: this.cartState.getItemCount(),
+      totalPrice: this.cartState.getTotalPrice(),
+      isEmpty: this.cartState.isEmpty()
+    };
   }
 }
 
@@ -644,5 +659,109 @@ class CartManager {
       notification.remove();
       window.location.reload();
     }, duration);
+  }
+
+  // Get cart summary for debugging/logging
+  getCartSummary() {
+    return this.cartService.getCartState();
+  }
+}
+
+// Cart state class to encapsulate cart data and prevent indecent exposure
+class CartState {
+  constructor() {
+    this._items = [];
+    this._totalItems = 0;
+    this._totalPrice = 0;
+  }
+
+  // Private method to update totals
+  _updateTotals() {
+    this._totalItems = this._items.reduce((sum, item) => sum + item.amount, 0);
+    this._totalPrice = this._items.reduce((sum, item) => sum + item.totalPrice, 0);
+  }
+
+  // Get all cart items (read-only access)
+  getItems() {
+    return [...this._items]; // Return a copy to prevent external modification
+  }
+
+  // Get item count
+  getItemCount() {
+    return this._totalItems;
+  }
+
+  // Get total price
+  getTotalPrice() {
+    return this._totalPrice;
+  }
+
+  // Check if cart is empty
+  isEmpty() {
+    return this._items.length === 0;
+  }
+
+  // Get item count for specific item
+  getItemQuantity(itemId) {
+    const item = this._items.find(item => item.id === itemId);
+    return item ? item.amount : 0;
+  }
+
+  // Update cart state from server data
+  updateFromServerData(serverData) {
+    this._items = serverData || [];
+    this._updateTotals();
+  }
+
+  // Add item to cart (internal use only)
+  addItem(item) {
+    const existingItem = this._items.find(i => i.id === item.id);
+    if (existingItem) {
+      existingItem.amount += 1;
+      existingItem.totalPrice = existingItem.price * existingItem.amount;
+    } else {
+      this._items.push({
+        ...item,
+        amount: 1,
+        totalPrice: item.price
+      });
+    }
+    this._updateTotals();
+  }
+
+  // Remove item from cart (internal use only)
+  removeItem(itemId) {
+    this._items = this._items.filter(item => item.id !== itemId);
+    this._updateTotals();
+  }
+
+  // Update item quantity (internal use only)
+  updateItemQuantity(itemId, newAmount) {
+    const item = this._items.find(i => i.id === itemId);
+    if (item) {
+      if (newAmount <= 0) {
+        this.removeItem(itemId);
+      } else {
+        item.amount = newAmount;
+        item.totalPrice = item.price * newAmount;
+        this._updateTotals();
+      }
+    }
+  }
+
+  // Clear cart (internal use only)
+  clear() {
+    this._items = [];
+    this._totalItems = 0;
+    this._totalPrice = 0;
+  }
+
+  // Get cart summary for debugging/logging
+  getSummary() {
+    return {
+      itemCount: this._totalItems,
+      totalPrice: this._totalPrice,
+      uniqueItems: this._items.length
+    };
   }
 }
